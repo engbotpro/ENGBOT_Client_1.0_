@@ -1,9 +1,11 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { ChangePasswordRequest, LoginResponse, UpdatePasswordAltRequest, User } from "../../types";
 
-// Fetch base query with Authorization header
+// Base URL: vazio = URLs relativas (Docker com proxy). Na Vercel, defina VITE_API_URL no projeto.
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+
 const baseQuery = fetchBaseQuery({
-  baseUrl: "", // Use relative URLs since we have proxy configured
+  baseUrl: API_BASE_URL,
   prepareHeaders: (headers) => {
     // Get the token from localStorage
     const token = localStorage.getItem("authToken");
