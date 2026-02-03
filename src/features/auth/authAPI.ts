@@ -3,6 +3,7 @@ import { ChangePasswordRequest, LoginResponse, UpdatePasswordAltRequest, User } 
 
 // Base URL: vazio = URLs relativas (Docker com proxy). Na Vercel, defina VITE_API_URL no projeto.
 const API_BASE_URL = import.meta.env.VITE_API_URL ?? "";
+console.log('API_BASE_URL', API_BASE_URL);
 
 const baseQuery = fetchBaseQuery({
   baseUrl: API_BASE_URL,
