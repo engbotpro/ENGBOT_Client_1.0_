@@ -96,7 +96,7 @@ export default function UserLogin() {
   const handleGoogleSignIn = () => {
     /* Ajuste esta rota conforme seu backend/OAuth */
    
-    window.location.href = `${import.meta.env.VITE_SERVER_URL}/auth/google`;
+    window.location.href = `${import.meta.env.VITE_SERVER_URL ?? ''}/auth/google`;
   };
 
   /** ------------- render ------------- */

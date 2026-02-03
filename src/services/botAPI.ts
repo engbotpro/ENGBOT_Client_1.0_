@@ -1,7 +1,7 @@
 import { Bot, BackendBot } from '../types/bot';
 import type { BotConfig, BotPerformance } from '../types/bot';
 
-const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000';
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? ''; // vazio = URLs relativas (ex.: Docker com proxy nginx)
 
 class BotAPI {
   private async request<T>(endpoint: string, options: RequestInit = {}): Promise<T> {
