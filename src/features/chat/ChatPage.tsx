@@ -169,7 +169,7 @@ const ChatPage: React.FC = () => {
           <Typography variant="body2">
             <strong>Servidor não disponível</strong>
             <br />
-            Não foi possível conectar ao servidor. Certifique-se de que o servidor backend está rodando na porta 5000.
+            Não foi possível conectar ao servidor. Verifique se o backend está acessível e tente novamente.
           </Typography>
         </Alert>
       )}

@@ -1,5 +1,7 @@
 // src/services/tradingAPI.ts
 
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? '';
+
 export interface Order {
   id: string;
   symbol: string;
@@ -186,7 +188,7 @@ class TradingAPI {
         return;
       }
 
-      const response = await fetch('http://localhost:5000/api/pending-orders', {
+      const response = await fetch(`${API_BASE_URL}/api/pending-orders`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -217,7 +219,7 @@ class TradingAPI {
         return;
       }
 
-      const response = await fetch(`http://localhost:5000/api/pending-orders/${order.id}/execute`, {
+      const response = await fetch(`${API_BASE_URL}/api/pending-orders/${order.id}/execute`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -251,7 +253,7 @@ class TradingAPI {
       }
 
       // Atualizar apenas o status da pending order para 'filled' sem criar trade
-      const response = await fetch(`http://localhost:5000/api/pending-orders/${order.id}`, {
+      const response = await fetch(`${API_BASE_URL}/api/pending-orders/${order.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -301,7 +303,7 @@ class TradingAPI {
         throw new Error('Token de autenticação não encontrado');
       }
 
-      const response = await fetch('http://localhost:5000/api/trades', {
+      const response = await fetch(`${API_BASE_URL}/api/trades`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -461,7 +463,7 @@ class TradingAPI {
       }
 
       // Buscar todos os trades abertos do símbolo
-      const response = await fetch('http://localhost:5000/api/trades', {
+      const response = await fetch(`${API_BASE_URL}/api/trades`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -485,7 +487,7 @@ class TradingAPI {
           
           const tradePnlPercent = (tradePnl / (trade.price * trade.quantity)) * 100;
 
-          const updateResponse = await fetch(`http://localhost:5000/api/trades/${trade.id}`, {
+          const updateResponse = await fetch(`${API_BASE_URL}/api/trades/${trade.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -633,7 +635,7 @@ class TradingAPI {
       try {
         const authToken = localStorage.getItem('authToken');
         if (authToken) {
-          const response = await fetch(`http://localhost:5000/api/pending-orders/${orderId}`, {
+          const response = await fetch(`${API_BASE_URL}/api/pending-orders/${orderId}`, {
             method: 'DELETE',
             headers: {
               'Authorization': `Bearer ${authToken}`

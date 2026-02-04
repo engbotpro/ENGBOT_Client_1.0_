@@ -166,7 +166,7 @@ const Users = () => {
             rows={usersRow}
             setRows={setUsersRow}
             
-            users={users!}
+            users={users ?? []}
           />
         ),
       },

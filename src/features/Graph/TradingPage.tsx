@@ -17,6 +17,8 @@ import { RootState } from '../../store';
 import { useLocalStorage } from '../../hooks/usePersistence';
 import walletAPI from '../../services/walletAPI';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+
 const TradingPage: React.FC = () => {
   const [selectedSymbol, setSelectedSymbol] = useLocalStorage('selectedSymbol', 'BTCUSDT');
   const symbolChangeTimeoutRef = useRef<NodeJS.Timeout | null>(null);
@@ -170,7 +172,7 @@ const TradingPage: React.FC = () => {
       console.log('🔄 Recarregando ordens pendentes do backend...');
       
       // Buscar ordens pendentes do backend
-      const pendingOrdersResponse = await fetch('http://localhost:5000/api/pending-orders', {
+      const pendingOrdersResponse = await fetch(`${API_BASE}/api/pending-orders`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -230,7 +232,7 @@ const TradingPage: React.FC = () => {
       tradingAPI.clearPositionsOnly();
       
       // Buscar todos os trades abertos do usuário da tabela Trade
-      const response = await fetch('http://localhost:5000/api/trades', {
+      const response = await fetch(`${API_BASE}/api/trades`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -304,7 +306,7 @@ const TradingPage: React.FC = () => {
         tradingAPI.clearPositionsOnly();
         
         // Buscar trades abertos do usuário da tabela Trade
-        const response = await fetch('http://localhost:5000/api/trades', {
+        const response = await fetch(`${API_BASE}/api/trades`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           }
@@ -355,7 +357,7 @@ const TradingPage: React.FC = () => {
         }
 
         // Buscar ordens pendentes do usuário (independente de ter trades abertos)
-        const pendingOrdersResponse = await fetch('http://localhost:5000/api/pending-orders', {
+        const pendingOrdersResponse = await fetch(`${API_BASE}/api/pending-orders`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           }

@@ -8,6 +8,8 @@ import { RootState } from '../../store';
 import PositionsPanel from './PositionsPanel';
 import { type Position } from '../../services/tradingAPI';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+
 const AllPositionsPage: React.FC = () => {
   const [positions, setPositions] = useState<Position[]>([]);
   const [loading, setLoading] = useState(true);
@@ -23,7 +25,7 @@ const AllPositionsPage: React.FC = () => {
       console.log('🔄 Carregando todas as posições...');
       
       // Buscar todos os trades abertos do usuário
-      const response = await fetch('http://localhost:5000/api/trades', {
+      const response = await fetch(`${API_BASE}/api/trades`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -97,7 +99,7 @@ const AllPositionsPage: React.FC = () => {
       console.log(`🔄 Fechando posição: ${symbol}`);
       
       // Buscar todos os trades do símbolo
-      const response = await fetch('http://localhost:5000/api/trades', {
+      const response = await fetch(`${API_BASE}/api/trades`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -111,7 +113,7 @@ const AllPositionsPage: React.FC = () => {
         
         // Fechar todos os trades do símbolo
         for (const trade of symbolTrades) {
-          const updateResponse = await fetch(`http://localhost:5000/api/trades/${trade.id}`, {
+          const updateResponse = await fetch(`${API_BASE}/api/trades/${trade.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',

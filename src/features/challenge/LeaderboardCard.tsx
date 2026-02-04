@@ -54,7 +54,8 @@ const LeaderboardCard: React.FC = () => {
       const token = localStorage.getItem('authToken');
       console.log('🔑 Token encontrado:', !!token);
       
-      const response = await fetch('http://localhost:5000/api/challenges/leaderboard?limit=10', {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${apiUrl}/api/challenges/leaderboard?limit=10`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

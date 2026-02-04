@@ -424,7 +424,8 @@ const Wallet: React.FC = () => {
     if (!user?.id) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/challenges/stats/${user.id}`, {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${apiUrl}/api/challenges/stats/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }
@@ -448,7 +449,8 @@ const Wallet: React.FC = () => {
         setError(null);
         
         // Buscar tokens atuais
-        const currentTokensResponse = await fetch(`http://localhost:5000/api/challenges/stats/${user?.id}`, {
+        const baseUrl = import.meta.env.VITE_API_URL ?? '';
+        const currentTokensResponse = await fetch(`${baseUrl}/api/challenges/stats/${user?.id}`, {
           headers: {
             'Authorization': `Bearer ${localStorage.getItem('authToken')}`
           }
@@ -462,7 +464,7 @@ const Wallet: React.FC = () => {
         const newTokenAmount = (currentData.tokens || 0) + amount;
 
         // Atualizar tokens (incrementar)
-        const response = await fetch(`http://localhost:5000/api/challenges/stats/${user?.id}/tokens`, {
+        const response = await fetch(`${baseUrl}/api/challenges/stats/${user?.id}/tokens`, {
           method: 'PUT',
           headers: {
             'Content-Type': 'application/json',

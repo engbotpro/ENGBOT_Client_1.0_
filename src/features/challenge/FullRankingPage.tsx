@@ -88,7 +88,8 @@ const FullRankingPage: React.FC = () => {
       const token = localStorage.getItem('authToken');
       console.log('🔑 Token encontrado:', !!token); // Debug log
       
-      const response = await fetch('http://localhost:5000/api/challenges/all-users-stats', {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${apiUrl}/api/challenges/all-users-stats`, {
         headers: {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'

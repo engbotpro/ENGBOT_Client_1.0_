@@ -62,8 +62,9 @@ function EditActions(props: EditActionsProps) {
   const handleSaveClick = (id: GridRowId) => {
     // Procura em todos os rows (banco + novos)
     const editedRow = rows.find((row) => row.id === id);
-    // Verifica se o row já existia ou não
-    const isOldRow = users.findIndex((u) => u.id === id); 
+    // Verifica se o row já existia ou não (users pode ser undefined até a lista carregar)
+    const userList = users ?? [];
+    const isOldRow = userList.findIndex((u) => u.id === id); 
     if (editedRow!.hasChanged) {
       if (isOldRow !== -1) { 
         const { hasChanged, created_at, updated_at, ...newUser } = editedRow!;
@@ -96,7 +97,8 @@ function EditActions(props: EditActionsProps) {
   };
 
  const handlePasswordReset = async (rowId: string) => {
-    const user = users.find((u) => u.id === rowId);
+    const userList = users ?? [];
+    const user = userList.find((u) => u.id === rowId);
     if (!user) return;
 
     const ok = await confirm(

@@ -25,6 +25,8 @@ import { createTrade } from '../../services/tradeAPI';
 import { CreateTradeRequest } from '../../types/trade';
 import walletAPI, { Wallet as WalletType } from '../../services/walletAPI';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+
 interface OrderFormProps {
   symbol: string;
   currentPrice?: number;
@@ -802,7 +804,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
                         const authToken = localStorage.getItem('authToken');
                         console.log('🔑 Token de autenticação:', authToken ? 'Presente' : 'Ausente');
                         
-                        const response = await fetch('http://localhost:5000/api/trades', {
+                        const response = await fetch(`${API_BASE}/api/trades`, {
                           method: 'GET',
                           headers: {
                             'Content-Type': 'application/json',
@@ -838,7 +840,7 @@ const OrderForm: React.FC<OrderFormProps> = ({
                               console.log('💰 PnL calculado para trade:', { pnl, pnlPercent, currentPrice, openTrade });
                               
                               // Atualizar trade
-                              const updateResponse = await fetch(`http://localhost:5000/api/trades/${openTrade.id}`, {
+                              const updateResponse = await fetch(`${API_BASE}/api/trades/${openTrade.id}`, {
                                 method: 'PUT',
                                 headers: {
                                   'Content-Type': 'application/json',

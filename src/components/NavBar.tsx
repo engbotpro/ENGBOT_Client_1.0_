@@ -49,7 +49,8 @@ export default function NavBar({ open, setOpen }: AppBarProps) {
     if (!user?.id) return;
     
     try {
-      const response = await fetch(`http://localhost:5000/api/challenges/stats/${user.id}`, {
+      const apiUrl = import.meta.env.VITE_API_URL ?? '';
+      const response = await fetch(`${apiUrl}/api/challenges/stats/${user.id}`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('authToken')}`
         }

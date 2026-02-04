@@ -21,6 +21,8 @@ import {
 import { Close as CloseIcon, Edit as EditIcon, Save as SaveIcon, Cancel as CancelIcon } from '@mui/icons-material';
 import { type Position, type Order, tradingAPI } from '../../services/tradingAPI';
 
+const API_BASE = import.meta.env.VITE_API_URL ?? '';
+
 interface PositionsPanelProps {
   positions: Position[];
   pendingOrders?: Order[];
@@ -133,7 +135,7 @@ const PositionsPanel: React.FC<PositionsPanelProps> = ({
 
       // Buscar todos os trades abertos do símbolo
       const authToken = localStorage.getItem('authToken');
-      const response = await fetch('http://localhost:5000/api/trades', {
+      const response = await fetch(`${API_BASE}/api/trades`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -153,7 +155,7 @@ const PositionsPanel: React.FC<PositionsPanelProps> = ({
         for (const trade of openTrades) {
           console.log(`🔄 Atualizando trade ${trade.id} - Valores antigos: TP: ${trade.takeProfit}, SL: ${trade.stopLoss}`);
           
-          const updateResponse = await fetch(`http://localhost:5000/api/trades/${trade.id}`, {
+          const updateResponse = await fetch(`${API_BASE}/api/trades/${trade.id}`, {
             method: 'PUT',
             headers: {
               'Content-Type': 'application/json',
@@ -238,7 +240,7 @@ const PositionsPanel: React.FC<PositionsPanelProps> = ({
         return;
       }
 
-      const updateResponse = await fetch(`http://localhost:5000/api/pending-orders/${order.id}`, {
+      const updateResponse = await fetch(`${API_BASE}/api/pending-orders/${order.id}`, {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
@@ -596,7 +598,7 @@ const PositionsPanel: React.FC<PositionsPanelProps> = ({
                                       // Fechar todos os trades do símbolo no banco de dados
                                       try {
                                         const authToken = localStorage.getItem('authToken');
-                                        const response = await fetch('http://localhost:5000/api/trades', {
+                                        const response = await fetch(`${API_BASE}/api/trades`, {
                                           method: 'GET',
                                           headers: {
                                             'Content-Type': 'application/json',
@@ -625,7 +627,7 @@ const PositionsPanel: React.FC<PositionsPanelProps> = ({
                                             const pnlPercent = (pnl / (openTrade.price * openTrade.quantity)) * 100;
                                             
                                             // Atualizar trade
-                                            const updateResponse = await fetch(`http://localhost:5000/api/trades/${openTrade.id}`, {
+                                            const updateResponse = await fetch(`${API_BASE}/api/trades/${openTrade.id}`, {
                                               method: 'PUT',
                                               headers: {
                                                 'Content-Type': 'application/json',
