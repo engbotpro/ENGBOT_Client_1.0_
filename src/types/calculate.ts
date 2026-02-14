@@ -81,6 +81,7 @@ export interface SpendingEntry {
   description: string;
   value: number;
   expenseType?: string; // Tipo de gasto selecionado pelo usuário
+  paymentMethod?: string; // Forma de pagamento (PIX, Cartão, etc.)
   period?: 'DIARIO' | 'SEMANAL' | 'MENSAL' | 'ANUAL'; // Período do planejamento
   year?: number;
   month?: number;

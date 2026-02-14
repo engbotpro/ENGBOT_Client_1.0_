@@ -2,13 +2,12 @@
  * src/components/CompoundInterest.tsx
  *
  * Formulário + gráfico de juros compostos
- * — faz POST (cria/atualiza) e GET (carrega o último cálculo salvo).
+ * — simulações salvas em lista (localStorage), editáveis e excluíveis.
  */
 
 import React, { useState, useEffect } from 'react';
 import { useSelector } from 'react-redux';
 import type { RootState } from '../../store';
-import type { CompoundSaved } from '../../types/calculate';
 
 import {
   Box,
@@ -20,28 +19,36 @@ import {
   CircularProgress,
   InputAdornment,
   Card,
-  CardContent,
   Typography,
   Grid,
   Paper,
-  Divider,
   Alert,
+  Table,
+  TableBody,
+  TableCell,
+  TableContainer,
+  TableHead,
+  TableRow,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogContentText,
+  DialogActions,
+  Collapse,
+  IconButton,
 } from '@mui/material';
 import {
   Calculate as CalculateIcon,
   Delete as DeleteIcon,
   TrendingUp as TrendingUpIcon,
   AccountBalance as AccountBalanceIcon,
-  Receipt as ReceiptIcon,
+  History as HistoryIcon,
+  Save as SaveIcon,
+  ExpandMore as ExpandMoreIcon,
+  ExpandLess as ExpandLessIcon,
 } from '@mui/icons-material';
 
-import {
-  useCalculateCompoundMutation,
-  useGetCompoundQuery,
-  useDeleteCompoundMutation
-} from '../calculate/CalculateAPI';
-
-import type { CompoundParams, CompoundResult } from '../../types/calculate';
+import type { CompoundParams } from '../../types/calculate';
 
 import {
   ResponsiveContainer,
@@ -54,11 +61,27 @@ import {
 } from 'recharts';
 import NumericFormatCustom, { PercentageFormatCustom } from '../../components/NumericFormatCustom';
 
+const STORAGE_KEY = 'compoundInterest_simulations';
+
+interface SavedCompoundSimulation {
+  id: string;
+  name: string;
+  initial: number;
+  rate: number;
+  ratePeriod: 'ANUAL' | 'MENSAL';
+  term: number;
+  termUnit: 'ANOS' | 'MESES';
+  taxPercent: number;
+  series: Array<{ period: number; value: number }>;
+  finalValue: number;
+  taxValue: number;
+  netValue: number;
+  createdAt: string;
+}
+
 const CompoundInterest: React.FC = () => {
-  /* —— dados de autenticação —— */
   const userId = useSelector((state: RootState) => state.auth.user?.id ?? '');
 
-  /* —— estados do formulário —— */
   const [initial, setInitial]     = useState('0');
   const [rate, setRate]           = useState('0');
   const [ratePeriod, setRatePeriod] = useState<'ANUAL' | 'MENSAL'>('ANUAL');
@@ -66,33 +89,60 @@ const CompoundInterest: React.FC = () => {
   const [termUnit, setTermUnit]   = useState<'ANOS' | 'MESES'>('ANOS');
   const [taxPercent, setTaxPercent] = useState('0');
 
-  /* —— série de pontos para o gráfico —— */
-  const [series, setSeries] = useState<Array<{ period: number; value: number }>>(
-    [],
-  );
+  const [series, setSeries] = useState<Array<{ period: number; value: number }>>([]);
+  const [savedSimulations, setSavedSimulations] = useState<SavedCompoundSimulation[]>([]);
+  const [simulationName, setSimulationName] = useState('');
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deleteTargetId, setDeleteTargetId] = useState<string | null>(null);
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
-  /* —— RTK Query —— */
-  const [calculateCompound, { isLoading }] = useCalculateCompoundMutation();
-  const {
-  data: saved,
-} = useGetCompoundQuery(userId, { skip: !userId }) as {
-  data: CompoundSaved | undefined;
-};
-const [deleteCompound, { isLoading: deleting }] = useDeleteCompoundMutation();
+  const toggleExpand = (id: string) => {
+    setExpandedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
 
-const handleDelete = () => {
-  if (!userId) return;
-  deleteCompound(userId);
-  setInitial('0');
+  /* Carregar simulações salvas */
+  useEffect(() => {
+    try {
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) setSavedSimulations(parsed);
+      }
+    } catch (e) {
+      console.error('Erro ao carregar simulações:', e);
+    }
+  }, []);
+
+  const saveSimulations = (list: SavedCompoundSimulation[]) => {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(list));
+    } catch (e) {
+      console.error('Erro ao salvar simulações:', e);
+    }
+  };
+
+  const handleDeleteForm = () => {
+    setInitial('0');
     setRate('0');
     setRatePeriod('ANUAL');
     setTerm('0');
     setTermUnit('ANOS');
     setTaxPercent('0');
     setSeries([]);
-};
+  };
 
-console.log('saved', saved)
+  const handleDeleteSimulation = (id: string) => {
+    const updated = savedSimulations.filter(s => s.id !== id);
+    setSavedSimulations(updated);
+    saveSimulations(updated);
+    setDeleteDialogOpen(false);
+    setDeleteTargetId(null);
+  };
 
   /* ——————————————————————————————————————————————————————————
    * Helpers
@@ -137,49 +187,51 @@ console.log('saved', saved)
       monthly: 0,
     });
     setSeries(baseSeries);
-
-    /* —— dispara mutação POST —— */
-    calculateCompound({
-      initial : numericInitial,
-      rate    : numericRate,
-      ratePeriod,
-      term    : numericTerm,
-      termUnit,
-      monthly : 0,
-      userId,
-      tax     : numericTaxPct,  // alíquota em %
-    } as CompoundParams);
   };
 
-  /* ——————————————————————————————————————————————————————————
-   * Efeito: popula formulário se encontrar registro salvo
-   * —————————————————————————————————————————————————————————— */
-  useEffect(() => {
-    if (!saved) return;
+  const handleSaveSimulation = () => {
+    if (!simulationName.trim()) return;
+    if (series.length === 0) return;
+    const finalVal = series[series.length - 1].value;
+    const initVal = Number(initial.replace(',', '.')) || 0;
+    const profit = finalVal - initVal;
+    const taxVal = profit * ((Number(taxPercent.replace(',', '.')) || 0) / 100);
+    const sim: SavedCompoundSimulation = {
+      id: Date.now().toString(),
+      name: simulationName.trim(),
+      initial: initVal,
+      rate: Number(rate.replace(',', '.')) || 0,
+      ratePeriod,
+      term: Number(term.replace(',', '.')) || 0,
+      termUnit,
+      taxPercent: Number(taxPercent.replace(',', '.')) || 0,
+      series: [...series],
+      finalValue: finalVal,
+      taxValue: taxVal,
+      netValue: finalVal - taxVal,
+      createdAt: new Date().toISOString(),
+    };
+    const updated = [sim, ...savedSimulations];
+    setSavedSimulations(updated);
+    saveSimulations(updated);
+    setSimulationName('');
+  };
 
-    setInitial(saved.initial?.toString() || '0');
-    setRate(saved.rate?.toString() || '0');
-    setRatePeriod(saved.ratePeriod as 'ANUAL' | 'MENSAL' || 'ANUAL');
-    setTerm(saved.term?.toString() || '0');
-    setTermUnit(saved.termUnit as 'ANOS' | 'MESES' || 'ANOS');
-    setTaxPercent(saved.tax?.toString() || '0');
+  const handleLoadSimulation = (s: SavedCompoundSimulation) => {
+    setInitial(s.initial.toString());
+    setRate(s.rate.toString());
+    setRatePeriod(s.ratePeriod);
+    setTerm(s.term.toString());
+    setTermUnit(s.termUnit);
+    setTaxPercent(s.taxPercent.toString());
+    setSeries(s.series);
+  };
 
-    setSeries(
-      generateSeries({
-        initial : saved.initial || 0,
-        rate    : saved.rate || 0,
-        ratePeriod: saved.ratePeriod || 'ANUAL',
-        term    : saved.term || 0,
-        termUnit: saved.termUnit || 'ANOS',
-        monthly : 0,
-      }),
-    );
-  }, [saved]);
-
-  /* —— valores derivados —— */
-  const finalValue = series.length ? series[series.length - 1].value : null;  
-  const taxValue = saved?.taxValue;
-  const netValue = saved?.netValue
+  const finalValue = series.length ? series[series.length - 1].value : null;
+  const taxValue = finalValue != null
+    ? (finalValue - (Number(initial.replace(',', '.')) || 0)) * ((Number(taxPercent.replace(',', '.')) || 0) / 100)
+    : null;
+  const netValue = finalValue != null && taxValue != null ? finalValue - taxValue : null;
 
     
 
@@ -296,7 +348,7 @@ console.log('saved', saved)
               <Stack direction="row" spacing={2} sx={{ mt: 2 }}>
                 <Button
                   variant="outlined"
-                  onClick={handleDelete}
+                  onClick={handleDeleteForm}
                   startIcon={<DeleteIcon />}
                   fullWidth
                   size="large"
@@ -306,8 +358,7 @@ console.log('saved', saved)
                 <Button
                   variant="contained"
                   onClick={calculate}
-                  disabled={isLoading}
-                  startIcon={isLoading ? <CircularProgress size={20} /> : <CalculateIcon />}
+                  startIcon={<CalculateIcon />}
                   fullWidth
                   size="large"
                 >
@@ -355,7 +406,7 @@ console.log('saved', saved)
                 <TextField
                   label="Valor do Imposto"
                   value={
-                    taxValue !== null && taxValue !== undefined
+                    taxValue != null
                       ? taxValue.toLocaleString('pt-BR', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
@@ -383,7 +434,7 @@ console.log('saved', saved)
                 <TextField
                   label="Valor Final Líquido"
                   value={
-                    netValue !== null && netValue !== undefined
+                    netValue != null
                       ? netValue.toLocaleString('pt-BR', {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
@@ -416,6 +467,118 @@ console.log('saved', saved)
           </Card>
         </Grid>
       </Grid>
+
+      {/* Salvar simulação */}
+      {series.length > 0 && (
+        <Card elevation={2} sx={{ mt: 3, p: 3 }}>
+          <Stack direction="row" spacing={2} alignItems="center">
+            <TextField
+              label="Nome da simulação"
+              value={simulationName}
+              onChange={(e) => setSimulationName(e.target.value)}
+              placeholder="Ex: Poupança 10 anos"
+              size="small"
+              sx={{ flex: 1 }}
+            />
+            <Button
+              variant="outlined"
+              startIcon={<SaveIcon />}
+              onClick={handleSaveSimulation}
+              disabled={!simulationName.trim()}
+            >
+              Salvar
+            </Button>
+          </Stack>
+        </Card>
+      )}
+
+      {/* Simulações salvas */}
+      {savedSimulations.length > 0 && (
+        <Card elevation={3} sx={{ mt: 3, p: 3 }}>
+          <Typography variant="h6" gutterBottom sx={{ fontWeight: 'bold', mb: 2 }}>
+            <HistoryIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            Simulações Salvas
+          </Typography>
+          <TableContainer component={Paper} variant="outlined">
+            <Table size="small">
+              <TableHead>
+                <TableRow>
+                  <TableCell padding="checkbox" sx={{ width: 40 }} />
+                  <TableCell>Nome</TableCell>
+                  <TableCell align="right">Capital Final</TableCell>
+                  <TableCell align="right">Líquido</TableCell>
+                  <TableCell>Data</TableCell>
+                  <TableCell align="center">Ações</TableCell>
+                </TableRow>
+              </TableHead>
+              <TableBody>
+                {savedSimulations.map((s) => (
+                  <React.Fragment key={s.id}>
+                    <TableRow>
+                      <TableCell padding="checkbox">
+                        <IconButton size="small" onClick={() => toggleExpand(s.id)} aria-label={expandedIds.has(s.id) ? 'Minimizar' : 'Expandir'}>
+                          {expandedIds.has(s.id) ? <ExpandLessIcon /> : <ExpandMoreIcon />}
+                        </IconButton>
+                      </TableCell>
+                      <TableCell>{s.name}</TableCell>
+                      <TableCell align="right">
+                        R$ {s.finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell align="right">
+                        R$ {s.netValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </TableCell>
+                      <TableCell>{new Date(s.createdAt).toLocaleDateString('pt-BR')}</TableCell>
+                      <TableCell align="center">
+                        <Stack direction="row" spacing={1} justifyContent="center">
+                          <Button size="small" variant="outlined" onClick={() => handleLoadSimulation(s)}>
+                            Carregar
+                          </Button>
+                          <Button
+                            size="small"
+                            variant="outlined"
+                            color="error"
+                            onClick={() => { setDeleteTargetId(s.id); setDeleteDialogOpen(true); }}
+                          >
+                            Excluir
+                          </Button>
+                        </Stack>
+                      </TableCell>
+                    </TableRow>
+                    <TableRow>
+                      <TableCell colSpan={6} sx={{ py: 0, borderBottom: 0 }}>
+                        <Collapse in={expandedIds.has(s.id)} timeout="auto" unmountOnExit>
+                          <Box sx={{ py: 2, px: 1, bgcolor: 'action.hover' }}>
+                            <Typography variant="subtitle2" sx={{ mb: 1, fontWeight: 'bold' }}>Resultados detalhados</Typography>
+                            <Stack direction="row" spacing={3} flexWrap="wrap">
+                              <Typography variant="body2">Capital Final: <strong>R$ {s.finalValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></Typography>
+                              <Typography variant="body2">Imposto: <strong>R$ {s.taxValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></Typography>
+                              <Typography variant="body2">Valor Líquido: <strong>R$ {s.netValue.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</strong></Typography>
+                              <Typography variant="body2">Parâmetros: {s.initial.toLocaleString('pt-BR')} inicial, {s.rate}% {s.ratePeriod === 'ANUAL' ? 'a.a.' : 'a.m.'}, {s.term} {s.termUnit === 'ANOS' ? 'anos' : 'meses'}</Typography>
+                            </Stack>
+                          </Box>
+                        </Collapse>
+                      </TableCell>
+                    </TableRow>
+                  </React.Fragment>
+                ))}
+              </TableBody>
+            </Table>
+          </TableContainer>
+        </Card>
+      )}
+
+      <Dialog open={deleteDialogOpen} onClose={() => { setDeleteDialogOpen(false); setDeleteTargetId(null); }}>
+        <DialogTitle>Excluir simulação</DialogTitle>
+        <DialogContent>
+          <DialogContentText>Deseja realmente excluir esta simulação?</DialogContentText>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setDeleteDialogOpen(false); setDeleteTargetId(null); }}>Cancelar</Button>
+          <Button color="error" variant="contained" onClick={() => deleteTargetId && handleDeleteSimulation(deleteTargetId)}>
+            Excluir
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Gráfico */}
       {series.length > 0 && (

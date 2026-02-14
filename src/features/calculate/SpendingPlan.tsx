@@ -1748,6 +1748,34 @@ const SpendingPlan: React.FC = () => {
       .sort((a, b) => b.value - a.value); // Ordenar por valor decrescente
   };
 
+  // Gastos por forma de pagamento
+  const getChartDataByPayment = (entries: SpendingEntryWithSource[]) => {
+    const paymentMap: { [key: string]: number } = {};
+    entries.forEach(entry => {
+      const payment = entry.paymentMethod || 'Sem forma de pagamento';
+      const value = typeof entry.value === 'number' ? entry.value : 0;
+      paymentMap[payment] = (paymentMap[payment] || 0) + value;
+    });
+    return Object.entries(paymentMap)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }));
+  };
+
+  // Detalhes por forma de pagamento: ao clicar em "PIX", mostra descrições/tipos pagos com PIX
+  const getDetailDataByPayment = (entries: SpendingEntryWithSource[], paymentMethod: string) => {
+    const filtered = entries.filter(entry => (entry.paymentMethod || 'Sem forma de pagamento') === paymentMethod);
+    const descMap: { [key: string]: number } = {};
+    filtered.forEach(entry => {
+      const label = entry.description || entry.expenseType || 'Sem descrição';
+      const value = typeof entry.value === 'number' ? entry.value : 0;
+      descMap[label] = (descMap[label] || 0) + value;
+    });
+    return Object.entries(descMap)
+      .filter(([_, value]) => value > 0)
+      .map(([name, value]) => ({ name, value }))
+      .sort((a, b) => b.value - a.value);
+  };
+
   const getRandomColor = (index: number) => {
     const colors = [
       '#8884d8', '#82ca9d', '#ffc658', '#ff7300', '#8dd1e1',
@@ -3932,6 +3960,46 @@ const SpendingPlan: React.FC = () => {
                           </Box>
                         </Card>
                       </Grid>
+
+                      {/* Despesas Planejadas por Forma de Pagamento */}
+                      <Grid item xs={12} md={6}>
+                        <Card elevation={2} sx={{ p: 3 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'secondary.main' }}>
+                            Despesas Planejadas por Pagamento
+                          </Typography>
+                          <Box sx={{ height: 300 }}>
+                            {renderExpenseChart(
+                              getChartDataByPayment(despesas), 
+                              '#9c27b0',
+                              (paymentName) => {
+                                setSelectedExpenseType(paymentName);
+                                setSelectedChartCategory('despesas-planejadas-pagamento');
+                                setShowDetailChart(true);
+                              }
+                            )}
+                          </Box>
+                        </Card>
+                      </Grid>
+
+                      {/* Despesas Realizadas por Forma de Pagamento */}
+                      <Grid item xs={12} md={6}>
+                        <Card elevation={2} sx={{ p: 3 }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'info.main' }}>
+                            Despesas Realizadas por Pagamento
+                          </Typography>
+                          <Box sx={{ height: 300 }}>
+                            {renderExpenseChart(
+                              getChartDataByPayment(despesasReais), 
+                              '#00bcd4',
+                              (paymentName) => {
+                                setSelectedExpenseType(paymentName);
+                                setSelectedChartCategory('despesas-realizadas-pagamento');
+                                setShowDetailChart(true);
+                              }
+                            )}
+                          </Box>
+                        </Card>
+                      </Grid>
                     </Grid>
                   ) : (
                     /* Gráfico detalhado */
@@ -3961,6 +4029,8 @@ const SpendingPlan: React.FC = () => {
                             {selectedChartCategory === 'despesas-planejadas' && 'Despesas Planejadas'}
                             {selectedChartCategory === 'receitas-realizadas' && 'Receitas Realizadas'}
                             {selectedChartCategory === 'despesas-realizadas' && 'Despesas Realizadas'}
+                            {selectedChartCategory === 'despesas-planejadas-pagamento' && 'Despesas Planejadas por Pagamento'}
+                            {selectedChartCategory === 'despesas-realizadas-pagamento' && 'Despesas Realizadas por Pagamento'}
                             {' - '}
                             {selectedExpenseType}
                           </Typography>
@@ -3981,6 +4051,12 @@ const SpendingPlan: React.FC = () => {
                               } else if (selectedChartCategory === 'despesas-realizadas') {
                                 detailData = getDetailDataByType(despesasReais, selectedExpenseType || '');
                                 color = '#ff9800';
+                              } else if (selectedChartCategory === 'despesas-planejadas-pagamento') {
+                                detailData = getDetailDataByPayment(despesas, selectedExpenseType || '');
+                                color = '#9c27b0';
+                              } else if (selectedChartCategory === 'despesas-realizadas-pagamento') {
+                                detailData = getDetailDataByPayment(despesasReais, selectedExpenseType || '');
+                                color = '#00bcd4';
                               }
 
                               if (detailData.length === 0) {

@@ -32,6 +32,10 @@ import {
   DialogContentText,
   DialogActions,
   Snackbar,
+  Tabs,
+  Tab,
+  FormControl,
+  InputLabel,
 } from '@mui/material';
 import {
   TrendingUp as TrendingUpIcon,
@@ -47,6 +51,7 @@ import {
   Home as HomeIcon,
   ShowChart as StockIcon,
   AccountBalanceWallet as FixedIncomeIcon,
+  Settings as SettingsIcon,
 } from '@mui/icons-material';
 import {
   ResponsiveContainer,
@@ -63,6 +68,29 @@ import {
 import NumericFormatCustom, { PercentageFormatCustom } from '../../components/NumericFormatCustom';
 import { useGetSpendingPlanQuery } from './CalculateAPI';
 
+/** Tipo de rendimento para renda fixa */
+export type ReturnType = 'FIXED' | 'INDEXED' | 'FIXED_PLUS_INDEXER';
+
+/** Indexadores para renda fixa */
+export type IndexerType = 'CDI' | 'SELIC' | 'IPCA' | 'POUPANCA' | 'TR' | 'IGPM';
+
+/** Modelo de investimento cadastrado em Configurações (aparece no select) */
+interface InvestmentTemplate {
+  id: number;
+  name: string;
+  type: 'CRYPTO' | 'STOCK' | 'FIXED_INCOME' | 'REAL_ESTATE';
+  expectedReturn?: number;
+  returnPeriod?: 'ANNUAL' | 'MONTHLY';
+  returnType?: ReturnType; // Para renda fixa: fixo, indexado ou fixo+indexado
+  fixedRate?: number; // Taxa fixa % (quando returnType FIXED ou parte fixa de FIXED_PLUS_INDEXER)
+  indexer?: IndexerType;
+  indexerPercent?: number; // Ex: 110 para 110% CDI
+  riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
+  taxRate: number;
+  startDate?: string; // Data da aplicação
+  maturityDate?: string; // Data do vencimento (renda fixa)
+}
+
 interface Investment {
   id: number;
   name: string;
@@ -72,8 +100,13 @@ interface Investment {
   monthlyContribution: number;
   expectedReturn: number;
   returnPeriod?: 'ANNUAL' | 'MONTHLY'; // Período da taxa: anual ou mensal
+  returnType?: ReturnType; // Para renda fixa: FIXED, INDEXED ou FIXED_PLUS_INDEXER
+  fixedRate?: number;
+  indexer?: IndexerType;
+  indexerPercent?: number;
   riskLevel: 'LOW' | 'MEDIUM' | 'HIGH';
   taxRate: number; // Taxa de imposto por investimento
+  startDate?: string; // Data da aplicação
   maturityDate?: string; // Data de vencimento (formato ISO: YYYY-MM-DD) - apenas para renda fixa
 }
 
@@ -104,6 +137,12 @@ interface SavedSimulation {
 }
 
 const STORAGE_KEY = 'profitPlan_simulations';
+const INVESTMENT_TYPES_KEY = 'profitPlan_investmentTypes';
+const ESTIMATED_CDI_ANNUAL = 12; // CDI estimado anual % para simulação
+/** Taxas anuais estimadas por indexador (simulação) */
+const INDEXER_ESTIMATED_ANNUAL: Record<IndexerType, number> = {
+  CDI: 12, SELIC: 11.25, IPCA: 6, POUPANCA: 8.5, TR: 2.5, IGPM: 7,
+};
 
 const ProfitPlan: React.FC = () => {
   const { user } = useSelector((state: RootState) => state.auth);
@@ -148,6 +187,26 @@ const ProfitPlan: React.FC = () => {
   const [editModalOpen, setEditModalOpen] = useState(false);
   const [editingInvestment, setEditingInvestment] = useState<Investment | null>(null);
 
+  // Aba: Investimentos ou Configurações
+  const [activeSection, setActiveSection] = useState<'investimentos' | 'configuracoes'>('investimentos');
+  
+  // Catálogo de tipos de investimento (Configurações)
+  const [investmentTemplates, setInvestmentTemplates] = useState<InvestmentTemplate[]>([]);
+  const [nextTemplateId, setNextTemplateId] = useState(1);
+  
+  // Formulário para novo template em Configurações
+  const [newTemplateName, setNewTemplateName] = useState('');
+  const [newTemplateType, setNewTemplateType] = useState<InvestmentTemplate['type']>('FIXED_INCOME');
+  const [newTemplateReturnType, setNewTemplateReturnType] = useState<ReturnType>('FIXED');
+  const [newTemplateFixedRate, setNewTemplateFixedRate] = useState(0);
+  const [newTemplateIndexer, setNewTemplateIndexer] = useState<IndexerType>('CDI');
+  const [newTemplateIndexerPercent, setNewTemplateIndexerPercent] = useState(100);
+  const [newTemplateStartDate, setNewTemplateStartDate] = useState('');
+  const [newTemplateMaturityDate, setNewTemplateMaturityDate] = useState('');
+  const [newTemplateRiskLevel, setNewTemplateRiskLevel] = useState<'LOW' | 'MEDIUM' | 'HIGH'>('MEDIUM');
+  const [newTemplateTaxRate, setNewTemplateTaxRate] = useState(15);
+  const [newTemplateExpectedReturn, setNewTemplateExpectedReturn] = useState(10); // Para CRYPTO, STOCK, REAL_ESTATE
+
   // Carregar simulações salvas ao montar
   useEffect(() => {
     try {
@@ -179,7 +238,84 @@ const ProfitPlan: React.FC = () => {
     } catch (error) {
       console.error('Erro ao carregar investimentos salvos:', error);
     }
+
+    // Carregar catálogo de tipos de investimento
+    try {
+      const savedTemplates = localStorage.getItem(INVESTMENT_TYPES_KEY);
+      if (savedTemplates) {
+        const parsed = JSON.parse(savedTemplates);
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          setInvestmentTemplates(parsed);
+          setNextTemplateId(Math.max(...parsed.map((t: InvestmentTemplate) => t.id), 0) + 1);
+        }
+      }
+    } catch (error) {
+      console.error('Erro ao carregar tipos de investimento:', error);
+    }
   }, []);
+
+  // Salvar catálogo de tipos de investimento
+  const saveInvestmentTemplates = (templates: InvestmentTemplate[]) => {
+    try {
+      localStorage.setItem(INVESTMENT_TYPES_KEY, JSON.stringify(templates));
+    } catch (error) {
+      console.error('Erro ao salvar tipos de investimento:', error);
+    }
+  };
+
+  // Adicionar tipo de investimento em Configurações
+  const addInvestmentTemplate = () => {
+    if (!newTemplateName.trim()) {
+      showSnackbar('Informe o nome do investimento', 'info');
+      return;
+    }
+    let expectedRet = newTemplateExpectedReturn;
+    if (newTemplateType === 'FIXED_INCOME') {
+      if (newTemplateReturnType === 'FIXED') {
+        expectedRet = newTemplateFixedRate;
+      } else if (newTemplateReturnType === 'INDEXED') {
+        const rate = INDEXER_ESTIMATED_ANNUAL[newTemplateIndexer] ?? ESTIMATED_CDI_ANNUAL;
+        expectedRet = (newTemplateIndexerPercent / 100) * rate;
+      } else {
+        const rate = INDEXER_ESTIMATED_ANNUAL[newTemplateIndexer] ?? ESTIMATED_CDI_ANNUAL;
+        expectedRet = newTemplateFixedRate + (newTemplateIndexerPercent / 100) * rate;
+      }
+    }
+    const hasIndexer = newTemplateType === 'FIXED_INCOME' && (newTemplateReturnType === 'INDEXED' || newTemplateReturnType === 'FIXED_PLUS_INDEXER');
+    const template: InvestmentTemplate = {
+      id: nextTemplateId,
+      name: newTemplateName.trim(),
+      type: newTemplateType,
+      expectedReturn: expectedRet,
+      returnPeriod: 'ANNUAL',
+      returnType: newTemplateType === 'FIXED_INCOME' ? newTemplateReturnType : undefined,
+      fixedRate: newTemplateType === 'FIXED_INCOME' ? newTemplateFixedRate : undefined,
+      indexer: hasIndexer ? newTemplateIndexer : undefined,
+      indexerPercent: hasIndexer ? newTemplateIndexerPercent : undefined,
+      riskLevel: newTemplateRiskLevel,
+      taxRate: newTemplateTaxRate,
+      startDate: newTemplateType === 'FIXED_INCOME' ? newTemplateStartDate || undefined : undefined,
+      maturityDate: newTemplateType === 'FIXED_INCOME' ? newTemplateMaturityDate || undefined : undefined,
+    };
+    const updated = [...investmentTemplates, template];
+    setInvestmentTemplates(updated);
+    setNextTemplateId(nextTemplateId + 1);
+    saveInvestmentTemplates(updated);
+    setNewTemplateName('');
+    setNewTemplateFixedRate(0);
+    setNewTemplateIndexerPercent(100);
+    setNewTemplateStartDate('');
+    setNewTemplateMaturityDate('');
+    showSnackbar(`"${template.name}" adicionado ao catálogo!`, 'success');
+  };
+
+  // Remover tipo de investimento
+  const removeInvestmentTemplate = (id: number) => {
+    const updated = investmentTemplates.filter(t => t.id !== id);
+    setInvestmentTemplates(updated);
+    saveInvestmentTemplates(updated);
+    showSnackbar('Tipo removido do catálogo', 'success');
+  };
 
   // Salvar simulações no localStorage
   const saveSimulations = (simulations: SavedSimulation[]) => {
@@ -190,23 +326,63 @@ const ProfitPlan: React.FC = () => {
     }
   };
 
-  // Adicionar novo investimento
-  const addInvestment = () => {
-    const newInvestment: Investment = {
-      id: nextId,
-      name: '',
-      type: 'CRYPTO',
+  // Adicionar novo investimento (com opção de selecionar do catálogo)
+  const addInvestment = (templateId?: number) => {
+    let baseInvestment: Partial<Investment> = {
       initialValue: 0,
       currentValue: 0,
       monthlyContribution: 0,
       expectedReturn: 10,
-      returnPeriod: 'ANNUAL', // Padrão: taxa anual
+      returnPeriod: 'ANNUAL',
       riskLevel: 'MEDIUM',
-      taxRate: 15, // Taxa de imposto padrão: 15%
+      taxRate: 15,
     };
+    
+    if (templateId !== undefined && templateId > 0) {
+      const template = investmentTemplates.find(t => t.id === templateId);
+      if (template) {
+        baseInvestment = {
+          ...baseInvestment,
+          name: template.name,
+          type: template.type,
+          expectedReturn: template.expectedReturn ?? 10,
+          returnPeriod: template.returnPeriod ?? 'ANNUAL',
+          returnType: template.returnType,
+          fixedRate: template.fixedRate,
+          indexer: template.indexer,
+          indexerPercent: template.indexerPercent,
+          riskLevel: template.riskLevel,
+          taxRate: template.taxRate ?? 15,
+          startDate: template.startDate,
+          maturityDate: template.maturityDate,
+        };
+      }
+    } else {
+      baseInvestment.name = '';
+      baseInvestment.type = 'CRYPTO';
+    }
+    
+    const newInvestment: Investment = {
+      id: nextId,
+      name: baseInvestment.name ?? '',
+      type: baseInvestment.type ?? 'CRYPTO',
+      initialValue: baseInvestment.initialValue ?? 0,
+      currentValue: baseInvestment.currentValue ?? 0,
+      monthlyContribution: baseInvestment.monthlyContribution ?? 0,
+      expectedReturn: baseInvestment.expectedReturn ?? 10,
+      returnPeriod: baseInvestment.returnPeriod ?? 'ANNUAL',
+      returnType: baseInvestment.returnType,
+      fixedRate: baseInvestment.fixedRate,
+      indexer: baseInvestment.indexer,
+      indexerPercent: baseInvestment.indexerPercent,
+      riskLevel: baseInvestment.riskLevel ?? 'MEDIUM',
+      taxRate: baseInvestment.taxRate ?? 15,
+      startDate: baseInvestment.startDate,
+      maturityDate: baseInvestment.maturityDate,
+    };
+    
     setInvestments([...investments, newInvestment]);
     setNextId(nextId + 1);
-    // Abrir modal automaticamente para editar o novo investimento
     setEditingInvestment(newInvestment);
     setEditModalOpen(true);
   };
@@ -393,9 +569,21 @@ const ProfitPlan: React.FC = () => {
           return; // Não processar mais este investimento
         }
         
-        // Calcular retorno mensal baseado no período da taxa
+        // Calcular retorno mensal baseado no período da taxa e tipo de rendimento
         let monthlyReturn = 0;
-        if (inv.returnPeriod === 'MONTHLY') {
+        if (inv.type === 'FIXED_INCOME' && inv.returnType === 'INDEXED') {
+          // Indexado: (indexerPercent% do indexador estimado)
+          const idx = inv.indexer ?? 'CDI';
+          const rateAnual = INDEXER_ESTIMATED_ANNUAL[idx] ?? ESTIMATED_CDI_ANNUAL;
+          monthlyReturn = ((inv.indexerPercent ?? 100) / 100) * (rateAnual / 12 / 100);
+        } else if (inv.type === 'FIXED_INCOME' && inv.returnType === 'FIXED_PLUS_INDEXER') {
+          // Taxa fixa + indexador
+          const fixedPart = (inv.fixedRate ?? 0) / 12 / 100;
+          const idx = inv.indexer ?? 'CDI';
+          const rateAnual = INDEXER_ESTIMATED_ANNUAL[idx] ?? ESTIMATED_CDI_ANNUAL;
+          const indexerPart = ((inv.indexerPercent ?? 100) / 100) * (rateAnual / 12 / 100);
+          monthlyReturn = fixedPart + indexerPart;
+        } else if (inv.returnPeriod === 'MONTHLY') {
           monthlyReturn = inv.expectedReturn / 100;
         } else {
           // Padrão: taxa anual (ou se não especificado, assume anual)
@@ -705,11 +893,216 @@ const ProfitPlan: React.FC = () => {
 
   return (
     <Box sx={{ p: 3, minHeight: '100%', width: '100%' }}>
-      <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', mb: 3, color: 'primary.main' }}>
-        <TrendingUpIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
-        Planejamento de Lucro
-      </Typography>
+      <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 2, mb: 3 }}>
+        <Typography variant="h4" gutterBottom sx={{ fontWeight: 'bold', color: 'primary.main', mb: 0 }}>
+          <TrendingUpIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+          Planejamento de Lucro
+        </Typography>
+        <Tabs value={activeSection} onChange={(_, v) => setActiveSection(v)} sx={{ minHeight: 40 }}>
+          <Tab label="Investimentos" value="investimentos" />
+          <Tab label="Configurações" value="configuracoes" />
+        </Tabs>
+      </Box>
 
+      {activeSection === 'configuracoes' ? (
+        /* Configurações - Inserir investimento */
+        <Card elevation={3} sx={{ p: 3 }}>
+          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3 }}>
+            <SettingsIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
+            Inserir Investimento no Catálogo
+          </Typography>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+            Os investimentos cadastrados aqui aparecerão no select ao adicionar um investimento. Ex: Ouro, CDB 110% CDI, etc.
+          </Typography>
+          
+          <Grid container spacing={3}>
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Nome do investimento"
+                value={newTemplateName}
+                onChange={(e) => setNewTemplateName(e.target.value)}
+                placeholder="Ex: Ouro, CDB 110% CDI..."
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Tipo</InputLabel>
+                <Select
+                  value={newTemplateType}
+                  onChange={(e) => setNewTemplateType(e.target.value as InvestmentTemplate['type'])}
+                  label="Tipo"
+                >
+                  <MenuItem value="CRYPTO">Criptomoedas</MenuItem>
+                  <MenuItem value="STOCK">Ações</MenuItem>
+                  <MenuItem value="FIXED_INCOME">Renda Fixa</MenuItem>
+                  <MenuItem value="REAL_ESTATE">Imóveis</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            {newTemplateType !== 'FIXED_INCOME' && (
+              <Grid item xs={12} md={4}>
+                <TextField
+                  label="Retorno esperado (% ao ano)"
+                  type="number"
+                  value={newTemplateExpectedReturn}
+                  onChange={(e) => setNewTemplateExpectedReturn(Number(e.target.value.replace(',', '.')) || 10)}
+                  fullWidth
+                  size="small"
+                  InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                />
+              </Grid>
+            )}
+            {newTemplateType === 'FIXED_INCOME' && (
+              <>
+                <Grid item xs={12} md={4}>
+                  <FormControl fullWidth size="small">
+                    <InputLabel>Rendimento</InputLabel>
+                    <Select
+                      value={newTemplateReturnType}
+                      onChange={(e) => setNewTemplateReturnType(e.target.value as ReturnType)}
+                      label="Rendimento"
+                    >
+                      <MenuItem value="FIXED">Taxa fixa</MenuItem>
+                      <MenuItem value="INDEXED">Indexado (CDI, SELIC, IPCA...)</MenuItem>
+                      <MenuItem value="FIXED_PLUS_INDEXER">Taxa fixa + indexador</MenuItem>
+                    </Select>
+                  </FormControl>
+                </Grid>
+                {newTemplateReturnType === 'FIXED' && (
+                  <Grid item xs={12} md={4}>
+                    <TextField
+                      label="Taxa fixa (% ao ano)"
+                      type="number"
+                      value={newTemplateFixedRate}
+                      onChange={(e) => setNewTemplateFixedRate(Number(e.target.value.replace(',', '.')) || 0)}
+                      fullWidth
+                      size="small"
+                      InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                    />
+                  </Grid>
+                )}
+                {(newTemplateReturnType === 'INDEXED' || newTemplateReturnType === 'FIXED_PLUS_INDEXER') && (
+                  <>
+                    {newTemplateReturnType === 'FIXED_PLUS_INDEXER' && (
+                      <Grid item xs={12} md={4}>
+                        <TextField
+                          label="Taxa fixa (% ao ano)"
+                          type="number"
+                          value={newTemplateFixedRate}
+                          onChange={(e) => setNewTemplateFixedRate(Number(e.target.value.replace(',', '.')) || 0)}
+                          fullWidth
+                          size="small"
+                          InputProps={{ endAdornment: <InputAdornment position="end">%</InputAdornment> }}
+                        />
+                      </Grid>
+                    )}
+                    <Grid item xs={12} md={4}>
+                      <FormControl fullWidth size="small">
+                        <InputLabel>Indexador</InputLabel>
+                        <Select
+                          value={newTemplateIndexer}
+                          onChange={(e) => setNewTemplateIndexer(e.target.value as IndexerType)}
+                          label="Indexador"
+                        >
+                          <MenuItem value="CDI">CDI</MenuItem>
+                          <MenuItem value="SELIC">SELIC</MenuItem>
+                          <MenuItem value="IPCA">IPCA</MenuItem>
+                          <MenuItem value="POUPANCA">Poupança</MenuItem>
+                          <MenuItem value="TR">TR</MenuItem>
+                          <MenuItem value="IGPM">IGP-M</MenuItem>
+                        </Select>
+                      </FormControl>
+                    </Grid>
+                    <Grid item xs={12} md={4}>
+                      <TextField
+                        label="% do indexador (ex: 110 para 110% CDI)"
+                        type="number"
+                        value={newTemplateIndexerPercent}
+                        onChange={(e) => setNewTemplateIndexerPercent(Number(e.target.value.replace(',', '.')) || 100)}
+                        fullWidth
+                        size="small"
+                      />
+                    </Grid>
+                  </>
+                )}
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="Data da aplicação"
+                    type="date"
+                    value={newTemplateStartDate}
+                    onChange={(e) => setNewTemplateStartDate(e.target.value)}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+                <Grid item xs={12} md={4}>
+                  <TextField
+                    label="Data do vencimento"
+                    type="date"
+                    value={newTemplateMaturityDate}
+                    onChange={(e) => setNewTemplateMaturityDate(e.target.value)}
+                    fullWidth
+                    size="small"
+                    InputLabelProps={{ shrink: true }}
+                  />
+                </Grid>
+              </>
+            )}
+            <Grid item xs={12} md={4}>
+              <FormControl fullWidth size="small">
+                <InputLabel>Risco</InputLabel>
+                <Select
+                  value={newTemplateRiskLevel}
+                  onChange={(e) => setNewTemplateRiskLevel(e.target.value as 'LOW' | 'MEDIUM' | 'HIGH')}
+                  label="Risco"
+                >
+                  <MenuItem value="LOW">Baixo</MenuItem>
+                  <MenuItem value="MEDIUM">Médio</MenuItem>
+                  <MenuItem value="HIGH">Alto</MenuItem>
+                </Select>
+              </FormControl>
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <TextField
+                label="Imposto (%)"
+                type="number"
+                value={newTemplateTaxRate}
+                onChange={(e) => setNewTemplateTaxRate(Number(e.target.value.replace(',', '.')) || 15)}
+                fullWidth
+                size="small"
+              />
+            </Grid>
+            <Grid item xs={12} md={4}>
+              <Button variant="contained" startIcon={<AddIcon />} onClick={addInvestmentTemplate} fullWidth>
+                Adicionar ao catálogo
+              </Button>
+            </Grid>
+          </Grid>
+
+          {investmentTemplates.length > 0 && (
+            <Box sx={{ mt: 4 }}>
+              <Typography variant="subtitle1" sx={{ fontWeight: 'bold', mb: 2 }}>
+                Investimentos no catálogo:
+              </Typography>
+              <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1 }}>
+                {investmentTemplates.map((t) => (
+                  <Chip
+                    key={t.id}
+                    label={`${t.name}${t.type === 'FIXED_INCOME' && t.returnType === 'INDEXED' ? ` (${t.indexerPercent}% ${t.indexer})` : t.type === 'FIXED_INCOME' && t.returnType === 'FIXED_PLUS_INDEXER' ? ` (${t.fixedRate}% + ${t.indexerPercent}% ${t.indexer})` : ''}`}
+                    onDelete={() => removeInvestmentTemplate(t.id)}
+                    color="primary"
+                    variant="outlined"
+                    size="small"
+                  />
+                ))}
+              </Box>
+            </Box>
+          )}
+        </Card>
+      ) : (
       <Grid container spacing={3}>
         {/* Configurações da Simulação */}
         <Grid item xs={12}>
@@ -809,7 +1202,7 @@ const ProfitPlan: React.FC = () => {
                 <AccountBalanceIcon sx={{ mr: 1, verticalAlign: 'middle' }} />
                 Investimentos
               </Typography>
-              <Box sx={{ display: 'flex', gap: 1 }}>
+              <Box sx={{ display: 'flex', gap: 1, flexWrap: 'wrap', alignItems: 'center' }}>
                 <Button
                   variant="outlined"
                   size="small"
@@ -827,13 +1220,34 @@ const ProfitPlan: React.FC = () => {
                 >
                   Carregar
                 </Button>
-                <Button
-                  variant="contained"
-                  startIcon={<AddIcon />}
-                  onClick={addInvestment}
-                >
-                  + Investimento
-                </Button>
+                <FormControl size="small" sx={{ minWidth: 200 }}>
+                  <InputLabel id="add-investment-select-label">Adicionar investimento</InputLabel>
+                  <Select
+                    labelId="add-investment-select-label"
+                    label="Adicionar investimento"
+                    value=""
+                    onChange={(e) => {
+                      const val = e.target.value;
+                      if (val === '__new__') {
+                        addInvestment();
+                      } else if (val && val !== '') {
+                        addInvestment(Number(val));
+                      }
+                    }}
+                  >
+                    <MenuItem value="">
+                      <em>Selecione...</em>
+                    </MenuItem>
+                    {investmentTemplates.map((t) => (
+                      <MenuItem key={t.id} value={t.id}>
+                        {t.name} ({t.type === 'FIXED_INCOME' ? 'Renda Fixa' : t.type === 'CRYPTO' ? 'Cripto' : t.type === 'STOCK' ? 'Ações' : 'Imóvel'})
+                      </MenuItem>
+                    ))}
+                    <MenuItem value="__new__">
+                      + Novo investimento (digitar nome)
+                    </MenuItem>
+                  </Select>
+                </FormControl>
               </Box>
             </Box>
 
@@ -975,8 +1389,11 @@ const ProfitPlan: React.FC = () => {
                               Retorno Esperado
                             </Typography>
                             <Typography variant="body2" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
-                              {investment.expectedReturn.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% 
-                              {investment.returnPeriod === 'MONTHLY' ? ' (mensal)' : ' (anual)'}
+                              {investment.type === 'FIXED_INCOME' && investment.returnType === 'INDEXED'
+                                ? `${investment.indexerPercent ?? 100}% ${investment.indexer ?? 'CDI'}`
+                                : investment.type === 'FIXED_INCOME' && investment.returnType === 'FIXED_PLUS_INDEXER'
+                                ? `${investment.fixedRate ?? 0}% + ${investment.indexerPercent ?? 100}% ${investment.indexer ?? 'CDI'}`
+                                : `${investment.expectedReturn.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}% ${investment.returnPeriod === 'MONTHLY' ? '(mensal)' : '(anual)'}`}
                             </Typography>
                           </Box>
 
@@ -1363,6 +1780,7 @@ const ProfitPlan: React.FC = () => {
           </Grid>
         )}
       </Grid>
+      )}
 
       {/* Dialog de Confirmação de Exclusão */}
       <Dialog
@@ -1502,40 +1920,114 @@ const ProfitPlan: React.FC = () => {
                   size="medium"
                 />
               </Grid>
-              <Grid item xs={12} md={6}>
-                <Select
-                  value={editingInvestment.returnPeriod || 'ANNUAL'}
-                  onChange={(e) => updateReturnPeriodInModal(e.target.value as 'ANNUAL' | 'MONTHLY')}
-                  fullWidth
-                  variant="outlined"
-                  size="medium"
-                  label="Período da Taxa"
-                >
-                  <MenuItem value="ANNUAL">Taxa Anual</MenuItem>
-                  <MenuItem value="MONTHLY">Taxa Mensal</MenuItem>
-                </Select>
-              </Grid>
-              <Grid item xs={12} md={6}>
-                <TextField
-                  label={`Retorno Esperado (% ${editingInvestment.returnPeriod === 'MONTHLY' ? 'Mensal' : 'Anual'})`}
-                  value={editingInvestment.expectedReturn}
-                  onChange={(e) => updateEditingInvestment('expectedReturn', Number(e.target.value.replace(',', '.')))}
-                  InputProps={{
-                    inputComponent: PercentageFormatCustom as any,
-                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
-                  }}
-                  fullWidth
-                  variant="outlined"
-                  size="medium"
-                  helperText={editingInvestment.returnPeriod === 'MONTHLY' 
-                    ? `Equivale a ${monthlyToAnnual(editingInvestment.expectedReturn).toFixed(2)}% ao ano`
-                    : `Equivale a ${annualToMonthly(editingInvestment.expectedReturn).toFixed(2)}% ao mês`}
-                />
-              </Grid>
-              {editingInvestment.type === 'FIXED_INCOME' && (
-                <Grid item xs={12} md={6}>
-                  <TextField
-                    label="Data de Vencimento"
+              {editingInvestment.type === 'FIXED_INCOME' ? (
+                <>
+                  <Grid item xs={12} md={6}>
+                    <FormControl fullWidth variant="outlined" size="medium">
+                      <InputLabel>Tipo de Rendimento</InputLabel>
+                      <Select
+                        value={editingInvestment.returnType || 'FIXED'}
+                        onChange={(e) => updateEditingInvestment('returnType', e.target.value as ReturnType)}
+                        label="Tipo de Rendimento"
+                      >
+                        <MenuItem value="FIXED">Taxa fixa</MenuItem>
+                        <MenuItem value="INDEXED">Indexado (CDI, SELIC, IPCA...)</MenuItem>
+                        <MenuItem value="FIXED_PLUS_INDEXER">Taxa fixa + indexador</MenuItem>
+                      </Select>
+                    </FormControl>
+                  </Grid>
+                  {(editingInvestment.returnType === 'INDEXED' || editingInvestment.returnType === 'FIXED_PLUS_INDEXER') ? (
+                    <>
+                      {editingInvestment.returnType === 'FIXED_PLUS_INDEXER' && (
+                        <Grid item xs={12} md={6}>
+                          <TextField
+                            label="Taxa fixa (% ao ano)"
+                            value={editingInvestment.fixedRate ?? 0}
+                            onChange={(e) => updateEditingInvestment('fixedRate', Number(e.target.value.replace(',', '.')))}
+                            InputProps={{
+                              inputComponent: PercentageFormatCustom as any,
+                              endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                            }}
+                            fullWidth
+                            variant="outlined"
+                            size="medium"
+                          />
+                        </Grid>
+                      )}
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth variant="outlined" size="medium">
+                          <InputLabel>Indexador</InputLabel>
+                          <Select
+                            value={editingInvestment.indexer || 'CDI'}
+                            onChange={(e) => updateEditingInvestment('indexer', e.target.value as IndexerType)}
+                            label="Indexador"
+                          >
+                            <MenuItem value="CDI">CDI</MenuItem>
+                            <MenuItem value="SELIC">SELIC</MenuItem>
+                            <MenuItem value="IPCA">IPCA</MenuItem>
+                            <MenuItem value="POUPANCA">Poupança</MenuItem>
+                            <MenuItem value="TR">TR</MenuItem>
+                            <MenuItem value="IGPM">IGP-M</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label="% do indexador (ex: 110 para 110% CDI)"
+                          value={editingInvestment.indexerPercent ?? 100}
+                          onChange={(e) => updateEditingInvestment('indexerPercent', Number(e.target.value.replace(',', '.')))}
+                          fullWidth
+                          variant="outlined"
+                          size="medium"
+                        />
+                      </Grid>
+                    </>
+                  ) : (
+                    <>
+                      <Grid item xs={12} md={6}>
+                        <FormControl fullWidth variant="outlined" size="medium">
+                          <InputLabel>Período da Taxa</InputLabel>
+                          <Select
+                            value={editingInvestment.returnPeriod || 'ANNUAL'}
+                            onChange={(e) => updateReturnPeriodInModal(e.target.value as 'ANNUAL' | 'MONTHLY')}
+                            label="Período da Taxa"
+                          >
+                            <MenuItem value="ANNUAL">Taxa Anual</MenuItem>
+                            <MenuItem value="MONTHLY">Taxa Mensal</MenuItem>
+                          </Select>
+                        </FormControl>
+                      </Grid>
+                      <Grid item xs={12} md={6}>
+                        <TextField
+                          label={`Taxa fixa (% ${editingInvestment.returnPeriod === 'MONTHLY' ? 'Mensal' : 'Anual'})`}
+                          value={editingInvestment.expectedReturn}
+                          onChange={(e) => updateEditingInvestment('expectedReturn', Number(e.target.value.replace(',', '.')))}
+                          InputProps={{
+                            inputComponent: PercentageFormatCustom as any,
+                            endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                          }}
+                          fullWidth
+                          variant="outlined"
+                          size="medium"
+                        />
+                      </Grid>
+                    </>
+                  )}
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Data da aplicação"
+                      type="date"
+                      value={editingInvestment.startDate || ''}
+                      onChange={(e) => updateEditingInvestment('startDate', e.target.value)}
+                      fullWidth
+                      variant="outlined"
+                      size="medium"
+                      InputLabelProps={{ shrink: true }}
+                    />
+                  </Grid>
+                  <Grid item xs={12} md={6}>
+                    <TextField
+                      label="Data de Vencimento"
                     type="date"
                     value={editingInvestment.maturityDate || ''}
                     onChange={(e) => updateEditingInvestment('maturityDate', e.target.value)}
@@ -1565,6 +2057,40 @@ const ProfitPlan: React.FC = () => {
                     }
                   />
                 </Grid>
+                </>
+              ) : (
+                <>
+              <Grid item xs={12} md={6}>
+                <FormControl fullWidth variant="outlined" size="medium">
+                  <InputLabel>Período da Taxa</InputLabel>
+                  <Select
+                    value={editingInvestment.returnPeriod || 'ANNUAL'}
+                    onChange={(e) => updateReturnPeriodInModal(e.target.value as 'ANNUAL' | 'MONTHLY')}
+                    label="Período da Taxa"
+                  >
+                    <MenuItem value="ANNUAL">Taxa Anual</MenuItem>
+                    <MenuItem value="MONTHLY">Taxa Mensal</MenuItem>
+                  </Select>
+                </FormControl>
+              </Grid>
+              <Grid item xs={12} md={6}>
+                <TextField
+                  label={`Retorno Esperado (% ${editingInvestment.returnPeriod === 'MONTHLY' ? 'Mensal' : 'Anual'})`}
+                  value={editingInvestment.expectedReturn}
+                  onChange={(e) => updateEditingInvestment('expectedReturn', Number(e.target.value.replace(',', '.')))}
+                  InputProps={{
+                    inputComponent: PercentageFormatCustom as any,
+                    endAdornment: <InputAdornment position="end">%</InputAdornment>,
+                  }}
+                  fullWidth
+                  variant="outlined"
+                  size="medium"
+                  helperText={editingInvestment.returnPeriod === 'MONTHLY' 
+                    ? `Equivale a ${monthlyToAnnual(editingInvestment.expectedReturn).toFixed(2)}% ao ano`
+                    : `Equivale a ${annualToMonthly(editingInvestment.expectedReturn).toFixed(2)}% ao mês`}
+                />
+              </Grid>
+                </>
               )}
               <Grid item xs={12} md={editingInvestment.type === 'FIXED_INCOME' ? 6 : 12}>
                 <Select
