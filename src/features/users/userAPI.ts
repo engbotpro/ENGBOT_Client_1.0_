@@ -1,6 +1,9 @@
 import { createApi, fetchBaseQuery } from "@reduxjs/toolkit/query/react";
 import { User } from "../../types";
 
+// Usar mesma base URL do auth (backend). Vazio = URLs relativas (proxy nginx local).
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? import.meta.env.VITE_SERVER_URL ?? "";
+
 // Interface para as estatísticas do dashboard
 export interface DashboardStats {
   totalUsers: number;
@@ -30,7 +33,7 @@ export interface PlanHistoryEntry {
 
 // Cria um baseQuery que inclui o header de Authorization a partir do localStorage
 const baseQuery = fetchBaseQuery({
-  baseUrl: '', 
+  baseUrl: API_BASE_URL, 
   prepareHeaders: (headers) => {
     const token = localStorage.getItem("authToken");
     if (token) {
