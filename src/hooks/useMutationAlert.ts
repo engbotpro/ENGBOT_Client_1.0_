@@ -63,12 +63,16 @@ const useMutationAlert = (mutationResult: MutationResult) => {
       processedErrorsRef.current.add(errorKey);
       
       // Tenta várias possibilidades de formato de erro
-      const errorMessage = 
+      let errorMessage = 
         mutationResult.error?.data?.error ||  // Backend retorna { error: "..." }
         mutationResult.error?.data?.msg ||    // Alguns endpoints retornam { msg: "..." }
         mutationResult.error?.message ||      // Erro padrão do fetch
         (typeof mutationResult.error === 'string' ? mutationResult.error : null) || // Se error é string direta
         "Usuário ou senha incorretos";
+      const debug = mutationResult.error?.data?._debug;
+      if (debug?.message) {
+        errorMessage += ` (${debug.code || ""}: ${debug.message})`;
+      }
       
       // Adiciona detalhes se existirem
       const details = mutationResult.error?.data?.details 
