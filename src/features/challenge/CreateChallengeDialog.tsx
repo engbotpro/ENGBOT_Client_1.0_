@@ -45,6 +45,16 @@ const CreateChallengeDialog: React.FC<CreateChallengeDialogProps> = ({
   userStats,
   onSearch
 }) => {
+  // Normaliza horário para HH:mm (corrige exibição 00:00 no mobile)
+  const normalizeTime = (value: string): string => {
+    if (!value || typeof value !== 'string') return '09:00';
+    const trimmed = value.trim();
+    const parts = trimmed.split(':');
+    const h = Math.min(23, Math.max(0, parseInt(parts[0], 10) || 0));
+    const m = parts.length >= 2 ? Math.min(59, Math.max(0, parseInt(parts[1], 10) || 0)) : 0;
+    return `${h.toString().padStart(2, '0')}:${m.toString().padStart(2, '0')}`;
+  };
+
   const [formData, setFormData] = useState({
     title: '',
     description: '',
@@ -546,13 +556,16 @@ const CreateChallengeDialog: React.FC<CreateChallengeDialogProps> = ({
                   fullWidth
                   label="Horário de Início"
                   type="time"
-                  value={formData.startTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, startTime: e.target.value }))}
+                  value={normalizeTime(formData.startTime)}
+                  onChange={(e) => setFormData(prev => ({ ...prev, startTime: normalizeTime(e.target.value) }))}
+                  onBlur={() => setFormData(prev => ({ ...prev, startTime: normalizeTime(prev.startTime) }))}
                   InputLabelProps={{
                     shrink: true,
                   }}
                   inputProps={{
-                    step: 300, // 5 min
+                    step: 300,
+                    min: '00:00',
+                    max: '23:59',
                   }}
                 />
               </Grid>
@@ -562,15 +575,18 @@ const CreateChallengeDialog: React.FC<CreateChallengeDialogProps> = ({
                   fullWidth
                   label="Horário de Término"
                   type="time"
-                  value={formData.endTime}
-                  onChange={(e) => setFormData(prev => ({ ...prev, endTime: e.target.value }))}
+                  value={normalizeTime(formData.endTime)}
+                  onChange={(e) => setFormData(prev => ({ ...prev, endTime: normalizeTime(e.target.value) }))}
+                  onBlur={() => setFormData(prev => ({ ...prev, endTime: normalizeTime(prev.endTime) }))}
                   error={!!errors.endTime}
                   helperText={errors.endTime}
                   InputLabelProps={{
                     shrink: true,
                   }}
                   inputProps={{
-                    step: 300, // 5 min
+                    step: 300,
+                    min: '00:00',
+                    max: '23:59',
                   }}
                 />
               </Grid>
@@ -863,7 +879,7 @@ const CreateChallengeDialog: React.FC<CreateChallengeDialogProps> = ({
                     <Typography variant="body1" fontWeight="bold">
                       {formData.type === ChallengeType.MANUAL_TRADING 
                         ? 'Imediato (quando aceito)' 
-                        : `${formatDate(formData.startDate)} às ${formData.startTime}`
+                        : `${formatDate(formData.startDate)} às ${normalizeTime(formData.startTime)}`
                       }
                     </Typography>
                   </Grid>
@@ -874,7 +890,7 @@ const CreateChallengeDialog: React.FC<CreateChallengeDialogProps> = ({
                     <Typography variant="body1" fontWeight="bold">
                       {formData.type === ChallengeType.MANUAL_TRADING 
                         ? `${formatInputDuration()} após início` 
-                        : `${formatDate(formData.endDate)} às ${formData.endTime}`
+                        : `${formatDate(formData.endDate)} às ${normalizeTime(formData.endTime)}`
                       }
                     </Typography>
                   </Grid>

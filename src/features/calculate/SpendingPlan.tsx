@@ -3964,7 +3964,7 @@ const SpendingPlan: React.FC = () => {
                       {/* Despesas Planejadas por Forma de Pagamento */}
                       <Grid item xs={12} md={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'secondary.main' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'secondary.main', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                             Despesas Planejadas por Pagamento
                           </Typography>
                           <Box sx={{ height: 300 }}>
@@ -3984,7 +3984,7 @@ const SpendingPlan: React.FC = () => {
                       {/* Despesas Realizadas por Forma de Pagamento */}
                       <Grid item xs={12} md={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
-                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'info.main' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'info.main', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                             Despesas Realizadas por Pagamento
                           </Typography>
                           <Box sx={{ height: 300 }}>

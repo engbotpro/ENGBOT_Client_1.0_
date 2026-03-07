@@ -5,6 +5,7 @@ import { RootState } from "../store";
 import { useSelector} from "react-redux";
 import MenuIcon from "@mui/icons-material/Menu";
 import Notification from "./Notification";
+import ChallengeNotificationBell from "./ChallengeNotificationBell";
 import { Brightness4, Brightness7, Star } from "@mui/icons-material";
 import { useTheme } from '../themeContext';
 import logo from '../assets/saete-nobg.ico';
@@ -195,6 +196,8 @@ export default function NavBar({ open, setOpen }: AppBarProps) {
                     </Typography>
                   </Box>
                 )}
+                {/* Sino de notificações de desafios */}
+                <ChallengeNotificationBell />
                 {/* Tokens ENGBOT */}
               <Box 
                 onClick={() => navigate('/home/token-history')}
