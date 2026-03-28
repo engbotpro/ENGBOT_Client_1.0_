@@ -3,6 +3,30 @@
   "outputDirectory": "dist",
   "framework": "vite",
   "rewrites": [
+    {
+      "source": "/auth/:path*",
+      "destination": "http://18.191.229.62:5000/auth/:path*"
+    },
+    {
+      "source": "/users/:path*",
+      "destination": "http://18.191.229.62:5000/users/:path*"
+    },
+    {
+      "source": "/users",
+      "destination": "http://18.191.229.62:5000/users"
+    },
+    {
+      "source": "/calculate/:path*",
+      "destination": "http://18.191.229.62:5000/calculate/:path*"
+    },
+    {
+      "source": "/indicators/:path*",
+      "destination": "http://18.191.229.62:5000/indicators/:path*"
+    },
+    {
+      "source": "/api/:path*",
+      "destination": "http://18.191.229.62:5000/api/:path*"
+    },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
