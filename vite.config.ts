@@ -13,22 +13,22 @@ export default defineConfig({
     strictPort: false, // Permite usar outra porta se 5173 estiver ocupada
     proxy: {
       '/api': {
-        target: 'http://18.191.229.62:5000',
+        target: 'http://18.231.86.25:5000',
         changeOrigin: true,
         secure: false,
       },
       '/users': {
-        target: 'http://18.191.229.62:5000',
+        target: 'http://18.231.86.25:5000',
         changeOrigin: true,
         secure: false,
       },
       '/calculate': {
-        target: 'http://18.191.229.62:5000',
+        target: 'http://18.231.86.25:5000',
         changeOrigin: true,
         secure: false,
       },
       '/auth': {
-        target: 'http://18.191.229.62:5000',
+        target: 'http://18.231.86.25:5000',
         changeOrigin: true,
         secure: false,
       },

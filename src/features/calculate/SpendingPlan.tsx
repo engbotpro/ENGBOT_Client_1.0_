@@ -31,6 +31,10 @@ import {
   TableCell,
   TableHead,
   TableRow,
+  Radio,
+  RadioGroup,
+  FormControl,
+  FormLabel,
 } from '@mui/material';
 import { 
   Delete, 
@@ -179,7 +183,7 @@ const SpendingPlan: React.FC = () => {
   
   const [newExpenseType, setNewExpenseType] = useState('');
   
-  // Estado para controlar tipo de gráfico na aba análise
+  // Estado: tipo de visualização na aba análise (pizza / barras)
   const [chartType, setChartType] = useState<'pie' | 'bar'>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('spendingPlan_chartType');
@@ -188,7 +192,7 @@ const SpendingPlan: React.FC = () => {
     return 'pie';
   });
 
-  // Estados para gráficos interativos
+  // Estados para pizza/barras interativos na análise
   const [selectedExpenseType, setSelectedExpenseType] = useState<string | null>(null);
   const [selectedChartCategory, setSelectedChartCategory] = useState<string | null>(null);
   const [showDetailChart, setShowDetailChart] = useState(false);
@@ -283,6 +287,11 @@ const SpendingPlan: React.FC = () => {
     }
     return false;
   });
+
+  const [copyFromMonthDialogOpen, setCopyFromMonthDialogOpen] = useState(false);
+  const [copySourceYear, setCopySourceYear] = useState(() => new Date().getFullYear());
+  const [copySourceMonth, setCopySourceMonth] = useState(1);
+  const [copyReplacePlanned, setCopyReplacePlanned] = useState(false);
   
   // Carregar estados salvos do localStorage quando userId estiver disponível (sobrescreve valores genéricos)
   useEffect(() => {
@@ -359,7 +368,7 @@ const SpendingPlan: React.FC = () => {
     }
   }, [hasActivePlan, activeTab, linkPeriods, replicateReceitasToAllMonths, replicateDespesasToAllMonths]);
   
-  // Salvar preferência de tipo de gráfico no localStorage
+  // Salvar preferência de visualização (pizza/barras) no localStorage
   useEffect(() => {
     localStorage.setItem('spendingPlan_chartType', chartType);
   }, [chartType]);
@@ -533,7 +542,122 @@ const SpendingPlan: React.FC = () => {
       return newData;
     });
   };
-  
+
+  /** Copia lançamentos planejados (não fixos) de um mês/ano de origem para o mês civil atual. */
+  const copyPlannedFromMonthToCurrentMonth = (
+    sourceYear: number,
+    sourceMonth: number,
+    mode: 'append' | 'replace'
+  ) => {
+    const now = new Date();
+    const destYear = now.getFullYear();
+    const destMonth = now.getMonth() + 1;
+
+    if (
+      planningPeriod !== 'MENSAL' &&
+      planningPeriod !== 'DIARIO' &&
+      planningPeriod !== 'SEMANAL'
+    ) {
+      dispatch(sendError('Disponível apenas para período Mensal, Semanal ou Diário.'));
+      return;
+    }
+
+    if (sourceYear === destYear && sourceMonth === destMonth) {
+      dispatch(sendError('O mês de origem não pode ser o mês corrente.'));
+      return;
+    }
+
+    const matchesSource = (entry: SpendingEntryWithSource) =>
+      !entry.isFixed &&
+      entry.month === sourceMonth &&
+      (!entry.year || entry.year === sourceYear);
+
+    const matchesDest = (entry: SpendingEntryWithSource) =>
+      !entry.isFixed &&
+      entry.month === destMonth &&
+      (!entry.year || entry.year === destYear);
+
+    const period = planningPeriod;
+    const srcReceitas = planData[period].receitas.filter(matchesSource);
+    const srcDespesas = planData[period].despesas.filter(matchesSource);
+
+    if (srcReceitas.length === 0 && srcDespesas.length === 0) {
+      dispatch(
+        sendError(
+          `Não há lançamentos planejados em ${getMonthName(sourceMonth)} de ${sourceYear}.`
+        )
+      );
+      return;
+    }
+
+    setPlanData((prev) => {
+      const newData: SpendingPlanData = {
+        DIARIO: {
+          receitas: [...prev.DIARIO.receitas],
+          despesas: [...prev.DIARIO.despesas],
+        },
+        SEMANAL: {
+          receitas: [...prev.SEMANAL.receitas],
+          despesas: [...prev.SEMANAL.despesas],
+        },
+        MENSAL: {
+          receitas: [...prev.MENSAL.receitas],
+          despesas: [...prev.MENSAL.despesas],
+        },
+        ANUAL: {
+          receitas: [...prev.ANUAL.receitas],
+          despesas: [...prev.ANUAL.despesas],
+        },
+      };
+
+      const bucket = newData[period];
+
+      if (mode === 'replace') {
+        bucket.receitas = bucket.receitas.filter((e) => !matchesDest(e));
+        bucket.despesas = bucket.despesas.filter((e) => !matchesDest(e));
+      }
+
+      const allIds = [
+        ...newData.DIARIO.receitas.map((e) => e.id),
+        ...newData.DIARIO.despesas.map((e) => e.id),
+        ...newData.SEMANAL.receitas.map((e) => e.id),
+        ...newData.SEMANAL.despesas.map((e) => e.id),
+        ...newData.MENSAL.receitas.map((e) => e.id),
+        ...newData.MENSAL.despesas.map((e) => e.id),
+        ...newData.ANUAL.receitas.map((e) => e.id),
+        ...newData.ANUAL.despesas.map((e) => e.id),
+      ];
+      let currentNextId = allIds.length > 0 ? Math.max(...allIds) + 1 : 1;
+
+      srcReceitas.forEach((entry) => {
+        bucket.receitas.push({
+          ...entry,
+          id: currentNextId++,
+          year: destYear,
+          month: destMonth,
+        });
+      });
+      srcDespesas.forEach((entry) => {
+        bucket.despesas.push({
+          ...entry,
+          id: currentNextId++,
+          year: destYear,
+          month: destMonth,
+        });
+      });
+
+      setNextId(currentNextId);
+      return newData;
+    });
+
+    setCopyFromMonthDialogOpen(false);
+    dispatch(
+      sendSuccess(
+        `Planejado copiado para ${getMonthName(destMonth)} de ${destYear}. Salve para persistir.`
+      )
+    );
+  };
+
   // Monitorar mudança de mês e replicar se necessário
   const [previousMonth, setPreviousMonth] = useState(selectedMonth);
   
@@ -1715,7 +1839,7 @@ const SpendingPlan: React.FC = () => {
     }
   };
 
-  // Funções para análise de dados e gráficos
+  // Funções para análise e visualizações na aba Análise
   const getChartDataByType = (entries: SpendingEntryWithSource[]) => {
     const typeMap: { [key: string]: number } = {};
     
@@ -3051,6 +3175,30 @@ const SpendingPlan: React.FC = () => {
                   }}
                 >
                 <Grid container spacing={3}>
+                  {(planningPeriod === 'MENSAL' ||
+                    planningPeriod === 'SEMANAL' ||
+                    planningPeriod === 'DIARIO') && (
+                    <Grid item xs={12}>
+                      <Button
+                        variant="outlined"
+                        color="primary"
+                        startIcon={<ContentCopyIcon />}
+                        onClick={() => {
+                          const now = new Date();
+                          const dm = now.getMonth() + 1;
+                          const dy = now.getFullYear();
+                          const sm = dm === 1 ? 12 : dm - 1;
+                          const sy = dm === 1 ? dy - 1 : dy;
+                          setCopySourceYear(sy);
+                          setCopySourceMonth(sm);
+                          setCopyReplacePlanned(false);
+                          setCopyFromMonthDialogOpen(true);
+                        }}
+                      >
+                        Copiar planejado de outro mês para o mês corrente
+                      </Button>
+                    </Grid>
+                  )}
                   {/* Receitas Planejadas */}
                   <Grid item xs={12} md={6}>
                     <Card elevation={2} sx={{ p: 3, height: 'fit-content' }}>
@@ -3851,10 +3999,10 @@ const SpendingPlan: React.FC = () => {
                 </DragDropContext>
               ) : activeTab === 'analise' ? (
                 <>
-                  {/* Análise - Gráficos por tipo de gasto */}
+                  {/* Análise por tipo / pagamento */}
                   {!showDetailChart ? (
                     <Grid container spacing={3}>
-                      {/* Controles do tipo de gráfico */}
+                      {/* Visualização pizza / barras */}
                       <Grid item xs={12}>
                         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
                           <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
@@ -3882,7 +4030,7 @@ const SpendingPlan: React.FC = () => {
                       </Grid>
                       
                       {/* Receitas Planejadas */}
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'success.main' }}>
                             Receitas Planejadas por Tipo
@@ -3902,7 +4050,7 @@ const SpendingPlan: React.FC = () => {
                       </Grid>
 
                       {/* Despesas Planejadas */}
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'error.main' }}>
                             Despesas Planejadas por Tipo
@@ -3922,7 +4070,7 @@ const SpendingPlan: React.FC = () => {
                       </Grid>
 
                       {/* Receitas Realizadas */}
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'info.main' }}>
                             Receitas Realizadas por Tipo
@@ -3942,7 +4090,7 @@ const SpendingPlan: React.FC = () => {
                       </Grid>
 
                       {/* Despesas Realizadas */}
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'warning.main' }}>
                             Despesas Realizadas por Tipo
@@ -3962,7 +4110,7 @@ const SpendingPlan: React.FC = () => {
                       </Grid>
 
                       {/* Despesas Planejadas por Forma de Pagamento */}
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'secondary.main', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                             Despesas Planejadas por Pagamento
@@ -3982,7 +4130,7 @@ const SpendingPlan: React.FC = () => {
                       </Grid>
 
                       {/* Despesas Realizadas por Forma de Pagamento */}
-                      <Grid item xs={12} md={6}>
+                      <Grid item xs={6}>
                         <Card elevation={2} sx={{ p: 3 }}>
                           <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 3, color: 'info.main', wordBreak: 'break-word', whiteSpace: 'normal' }}>
                             Despesas Realizadas por Pagamento
@@ -4000,9 +4148,102 @@ const SpendingPlan: React.FC = () => {
                           </Box>
                         </Card>
                       </Grid>
+
+                      <Grid item xs={6}>
+                        <Card elevation={2} sx={{ p: 3, height: '100%' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: 'warning.main' }}>
+                            Resumo — Planejado
+                          </Typography>
+                          <Stack spacing={1}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2">Receitas</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="success.main">
+                                R${' '}
+                                {totalReceitas.toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2">Despesas</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="error.main">
+                                R${' '}
+                                {totalDespesas.toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2">Saldo</Typography>
+                              <Typography
+                                variant="body2"
+                                fontWeight="bold"
+                                color={saldo >= 0 ? 'success.main' : 'error.main'}
+                              >
+                                R${' '}
+                                {saldo.toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Card>
+                      </Grid>
+                      <Grid item xs={6}>
+                        <Card elevation={2} sx={{ p: 3, height: '100%' }}>
+                          <Typography variant="h6" sx={{ fontWeight: 'bold', mb: 2, color: 'info.main' }}>
+                            Resumo — Realizado
+                          </Typography>
+                          <Stack spacing={1}>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2">Receitas</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="success.main">
+                                R${' '}
+                                {total(receitasReais).toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Typography>
+                            </Box>
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2">Despesas</Typography>
+                              <Typography variant="body2" fontWeight="bold" color="error.main">
+                                R${' '}
+                                {total(despesasReais).toLocaleString('pt-BR', {
+                                  minimumFractionDigits: 2,
+                                  maximumFractionDigits: 2,
+                                })}
+                              </Typography>
+                            </Box>
+                            <Divider />
+                            <Box sx={{ display: 'flex', justifyContent: 'space-between' }}>
+                              <Typography variant="body2">Saldo</Typography>
+                              <Typography
+                                variant="body2"
+                                fontWeight="bold"
+                                color={
+                                  capitalInicial + total(receitasReais) - total(despesasReais) >= 0
+                                    ? 'success.main'
+                                    : 'error.main'
+                                }
+                              >
+                                R${' '}
+                                {(capitalInicial + total(receitasReais) - total(despesasReais)).toLocaleString(
+                                  'pt-BR',
+                                  { minimumFractionDigits: 2, maximumFractionDigits: 2 }
+                                )}
+                              </Typography>
+                            </Box>
+                          </Stack>
+                        </Card>
+                      </Grid>
                     </Grid>
                   ) : (
-                    /* Gráfico detalhado */
+                    /* Detalhe */
                     <Grid container spacing={3}>
                       <Grid item xs={12}>
                         <Box sx={{ display: 'flex', alignItems: 'center', mb: 2, gap: 2 }}>
@@ -4496,6 +4737,95 @@ const SpendingPlan: React.FC = () => {
           </Card>
         </Grid>
       </Grid>
+
+      <Dialog
+        open={copyFromMonthDialogOpen}
+        onClose={() => setCopyFromMonthDialogOpen(false)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Copiar para o mês corrente</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Destino:{' '}
+            <strong>
+              {getMonthName(new Date().getMonth() + 1)} de {new Date().getFullYear()}
+            </strong>
+          </Typography>
+          <Typography variant="subtitle2" gutterBottom>
+            Copiar lançamentos de:
+          </Typography>
+          <Grid container spacing={2} sx={{ mb: 2 }}>
+            <Grid item xs={6}>
+              <Typography variant="caption" color="text.secondary">
+                Ano
+              </Typography>
+              <Select
+                value={copySourceYear}
+                onChange={(e) => setCopySourceYear(Number(e.target.value))}
+                fullWidth
+                size="small"
+              >
+                {Array.from({ length: 21 }, (_, i) => currentYear - 10 + i).map((y) => (
+                  <MenuItem key={y} value={y}>
+                    {y}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Grid>
+            <Grid item xs={6}>
+              <Typography variant="caption" color="text.secondary">
+                Mês
+              </Typography>
+              <Select
+                value={copySourceMonth}
+                onChange={(e) => setCopySourceMonth(Number(e.target.value))}
+                fullWidth
+                size="small"
+              >
+                {[1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12].map((m) => (
+                  <MenuItem key={m} value={m}>
+                    {getMonthName(m)}
+                  </MenuItem>
+                ))}
+              </Select>
+            </Grid>
+          </Grid>
+          <FormControl component="fieldset" variant="standard">
+            <FormLabel component="legend">Modo</FormLabel>
+            <RadioGroup
+              value={copyReplacePlanned ? 'replace' : 'append'}
+              onChange={(e) => setCopyReplacePlanned(e.target.value === 'replace')}
+            >
+              <FormControlLabel
+                value="append"
+                control={<Radio size="small" />}
+                label="Acrescentar aos lançamentos já existentes no mês corrente"
+              />
+              <FormControlLabel
+                value="replace"
+                control={<Radio size="small" />}
+                label="Substituir planejado do mês corrente (remove receitas e despesas não fixas antes de colar)"
+              />
+            </RadioGroup>
+          </FormControl>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setCopyFromMonthDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={() =>
+              copyPlannedFromMonthToCurrentMonth(
+                copySourceYear,
+                copySourceMonth,
+                copyReplacePlanned ? 'replace' : 'append'
+              )
+            }
+          >
+            Copiar
+          </Button>
+        </DialogActions>
+      </Dialog>
 
       {/* Dialog de Preview de Importação */}
       <Dialog
