@@ -16,6 +16,10 @@ export interface User {
   billingCycle?: string;            // 'mensal' | 'anual'
   planActivatedAt?: string;         // Data de ativação do plano
   planExpiresAt?: string;           // Data de expiração do plano
+  referralCode?: string;
+  referralCount?: number;
+  isReferralPremium?: boolean;
+  referredByUserId?: string | null;
 }
 
 export interface JwtPayload extends User {

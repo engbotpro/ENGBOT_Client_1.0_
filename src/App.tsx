@@ -20,11 +20,7 @@ import Register from './features/auth/resgister'
 import GoogleRedirectHandler from './features/auth/GoogleRedirectHandler'
 
 import Navbar from './components/Navbar/Navbar'
-import HeroSection from './features/Home/sections/Hero/Hero'
-import AboutSection from './features/Home/sections/About/AboutSection'
-import StrategySection from './features/Home/sections/Strategy/Strategy'
-import Operations from './features/Home/sections/Operations/Operations'
-import PricingPlans from './features/Home/sections/Plans/Plans'
+import LandingPage from './features/Home/LandingPage'
 import Footer from './components/Footer/Footer'
 
 import ProjectDetail from './features/ProjectDetail/ProjectDetail'
@@ -57,11 +53,7 @@ import ChatPage from './features/chat/ChatPage'
 
 const Landing = () => (
   <>
-    <HeroSection />
-    <AboutSection />
-    <StrategySection />
-    <Operations />
-    <PricingPlans />
+    <LandingPage />
     <Footer />
   </>
 )

@@ -135,6 +135,28 @@ const Users = () => {
         },
       },
       {
+        field: "referralCode",
+        headerName: "Código",
+        width: 110,
+        editable: false,
+      },
+      {
+        field: "referralCount",
+        headerName: "Indicações",
+        width: 100,
+        type: "number",
+        editable: false,
+      },
+      {
+        field: "isReferralPremium",
+        headerName: "Premium Indicação",
+        width: 150,
+        type: "boolean",
+        editable: false,
+        valueFormatter: (value?: boolean) => (value ? 'Sim' : 'Não'),
+        renderCell: (params) => (params.value ? 'Sim' : 'Não'),
+      },
+      {
         field: "active",
         headerName: "Situação",
         width: 100,

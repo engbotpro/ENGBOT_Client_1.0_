@@ -5,8 +5,8 @@ import EmailIcon from '@mui/icons-material/Email';
 
 const NEON = '#39FF14';
 
-const StyledFooter = styled(Box)(({ theme }) => ({
-  background: `linear-gradient(135deg, #0a1419 0%, #1a3a4a 50%, #0f2027 100%)`,
+const StyledFooter = styled(Box)(() => ({
+  background: 'linear-gradient(135deg, #061216 0%, #071b21 52%, #092a20 100%)',
   borderTop: `1px solid ${NEON}33`,
   position: 'relative',
   overflow: 'hidden',
@@ -54,7 +54,7 @@ const Footer: React.FC = () => {
                             fontWeight: 300,
                         }}
                     >
-                        © 2025 ENG BOT - All rights reserved
+                        © 2026 EB Finance — Todos os direitos reservados
                     </Typography>
                     <Box 
                         display="flex" 

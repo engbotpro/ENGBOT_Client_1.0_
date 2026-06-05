@@ -7,67 +7,53 @@ import MenuIcon from '@mui/icons-material/Menu'
 import MenuItem from '@mui/material/MenuItem'
 import Menu from '@mui/material/Menu'
 import Button from '@mui/material/Button'
+import Typography from '@mui/material/Typography'
 import { styled } from '@mui/material'
 
 const NEON = '#39FF14'
+const MUTED = '#A8B8B9'
 
 export const StyledAppBar = styled(AppBar)(() => ({
-  background: 'linear-gradient(135deg, #0f2027 0%, #2c5364 100%)',
+  background: 'rgba(6, 18, 22, 0.82)',
+  backdropFilter: 'blur(18px)',
+  borderBottom: '1px solid rgba(57, 255, 20, 0.12)',
   boxShadow: 'none',
 }))
 
-export const StyledNavLink = styled('a')(() => ({
-  textDecoration: 'none',
-  color: NEON,
-  fontWeight: 600,
-  textShadow: `0 0 8px ${NEON}`,
-  transition: 'transform 0.2s',
+export const StyledNavLink = styled('span')(() => ({
+  color: MUTED,
+  fontWeight: 700,
+  fontSize: 13,
+  cursor: 'pointer',
+  transition: 'color 0.2s ease',
   '&:hover': {
-    transform: 'scale(1.05)',
+    color: NEON,
   },
 }))
 
-export const StyledLoginButton = styled(Button)(({ theme }) => ({
+export const StyledLoginButton = styled(Button)(() => ({
   textTransform: 'none',
   color: NEON,
-  border: `1px solid ${NEON}`,
-  boxShadow: `0 0 8px ${NEON}`,
-  transition: theme.transitions.create(['background-color', 'transform'], {
-    duration: theme.transitions.duration.short,
-  }),
+  fontWeight: 900,
+  borderRadius: 999,
+  border: '1px solid rgba(57, 255, 20, 0.35)',
+  backgroundColor: 'rgba(57, 255, 20, 0.12)',
   '&:hover': {
-    backgroundColor: 'rgba(57,255,20,0.1)',
-    transform: 'scale(1.05)',
+    backgroundColor: 'rgba(57, 255, 20, 0.18)',
   },
 }))
 
-export const StyledMobileToolbar = styled(Toolbar)(({ theme }) => ({
-  [theme.breakpoints.up('xs')]: {
-    display: 'flex',
-    justifyContent: 'flex-end',
-  },
-  [theme.breakpoints.up('md')]: {
-    display: 'none',
-  },
-}))
+const navItems = [
+  { id: 'recursos', label: 'Recursos' },
+  { id: 'operacoes', label: 'Operações' },
+  { id: 'app', label: 'Telas' },
+]
 
-export const StyledDesktopToolbar = styled(Toolbar)(({ theme }) => ({
-  [theme.breakpoints.up('xs')]: {
-    display: 'none',
-  },
-  [theme.breakpoints.up('md')]: {
-    display: 'flex',
-    justifyContent: 'space-evenly',
-  },
-}))
-
-// 1) Defina a interface de props:
 interface NavbarProps {
   onScrollTo: (id: string) => void
   onLogin: () => void
 }
 
-// 2) Use-a no componente:
 export default function Navbar({ onScrollTo, onLogin }: NavbarProps) {
   const [anchorEl, setAnchorEl] = React.useState<null | HTMLElement>(null)
 
@@ -79,7 +65,6 @@ export default function Navbar({ onScrollTo, onLogin }: NavbarProps) {
     setAnchorEl(null)
   }
 
-  // 3) Funções internas apenas chamam props + fecham o menu
   const handleItemClick = (id: string) => {
     handleClose()
     onScrollTo(id)
@@ -90,12 +75,44 @@ export default function Navbar({ onScrollTo, onLogin }: NavbarProps) {
     onLogin()
   }
 
+  const brand = (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, mr: 'auto' }}>
+      <Box
+        component="img"
+        src="/landing/logoatual.png"
+        alt="EB Finance"
+        sx={{ width: { xs: 44, md: 52 }, height: { xs: 44, md: 52 } }}
+      />
+      <Typography
+        sx={{
+          color: NEON,
+          fontWeight: 900,
+          fontSize: { xs: '1.1rem', md: '1.25rem' },
+          letterSpacing: '-0.02em',
+        }}
+      >
+        EB Finance
+      </Typography>
+    </Box>
+  )
+
   return (
     <Box sx={{ flexGrow: 1 }}>
-      <StyledAppBar position="absolute">
-        {/* Mobile */}
-        <StyledMobileToolbar>
+      <StyledAppBar position="fixed">
+        <Toolbar sx={{ maxWidth: 1120, width: '100%', mx: 'auto', px: { xs: 2, md: 3 } }}>
+          {brand}
+
+          <Box sx={{ display: { xs: 'none', md: 'flex' }, alignItems: 'center', gap: 2.5 }}>
+            {navItems.map((item) => (
+              <StyledNavLink key={item.id} onClick={() => onScrollTo(item.id)}>
+                {item.label}
+              </StyledNavLink>
+            ))}
+            <StyledLoginButton onClick={onLogin}>Entrar</StyledLoginButton>
+          </Box>
+
           <IconButton
+            sx={{ display: { xs: 'inline-flex', md: 'none' }, ml: 'auto' }}
             size="large"
             aria-label="menu mobile"
             aria-controls="menu-appbar"
@@ -105,50 +122,35 @@ export default function Navbar({ onScrollTo, onLogin }: NavbarProps) {
           >
             <MenuIcon sx={{ color: NEON }} />
           </IconButton>
+
           <Menu
             id="menu-appbar"
             anchorEl={anchorEl}
-            anchorOrigin={{ vertical: 'top', horizontal: 'right' }}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
             keepMounted
             open={Boolean(anchorEl)}
             onClose={handleClose}
+            PaperProps={{
+              sx: {
+                bgcolor: '#0d252d',
+                border: '1px solid rgba(57, 255, 20, 0.22)',
+                mt: 1,
+              },
+            }}
           >
-            <MenuItem onClick={() => handleItemClick('about')}>
-              <StyledNavLink>A Plataforma</StyledNavLink>
-            </MenuItem>
-            <MenuItem onClick={() => handleItemClick('strategy')}>
-              <StyledNavLink>Estratégias</StyledNavLink>
-            </MenuItem>
-            <MenuItem onClick={() => handleItemClick('plans')}>
-              <StyledNavLink>Planos</StyledNavLink>
-            </MenuItem>
-            <MenuItem onClick={() => handleItemClick('operations')}>
-              <StyledNavLink>Operações</StyledNavLink>
-            </MenuItem>
+            {navItems.map((item) => (
+              <MenuItem key={item.id} onClick={() => handleItemClick(item.id)}>
+                <StyledNavLink>{item.label}</StyledNavLink>
+              </MenuItem>
+            ))}
             <MenuItem onClick={handleLoginClick}>
-              <StyledLoginButton variant="text">LOGIN</StyledLoginButton>
+              <StyledLoginButton variant="text" fullWidth>
+                Entrar
+              </StyledLoginButton>
             </MenuItem>
           </Menu>
-        </StyledMobileToolbar>
-
-        {/* Desktop */}
-        <StyledDesktopToolbar variant="regular">
-          <MenuItem onClick={() => handleItemClick('about')}>
-            <StyledNavLink>A Plataforma</StyledNavLink>
-          </MenuItem>
-          <MenuItem onClick={() => handleItemClick('strategy')}>
-            <StyledNavLink>Estratégias</StyledNavLink>
-          </MenuItem>
-          <MenuItem onClick={() => handleItemClick('plans')}>
-            <StyledNavLink>Planos</StyledNavLink>
-          </MenuItem>
-          <MenuItem onClick={() => handleItemClick('operations')}>
-            <StyledNavLink>Operações</StyledNavLink>
-          </MenuItem>
-          <StyledLoginButton onClick={handleLoginClick}>
-            LOGIN
-          </StyledLoginButton>
-        </StyledDesktopToolbar>
+        </Toolbar>
       </StyledAppBar>
     </Box>
   )
